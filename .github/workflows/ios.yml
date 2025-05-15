@@ -183,7 +183,6 @@ jobs:
 
       - name: Build and copy assets
         run: |
-          GOOS=js GOARCH=wasm go build -o capacitor/src/assets/game.wasm
           cd capacitor
           npm run build
           node scripts/copy-assets.js
