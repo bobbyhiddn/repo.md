@@ -2,7 +2,7 @@
 
 # Load environment variables from .env file
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+    export $(grep -v '^#' .env | grep -E '^[a-zA-Z_][a-zA-Z0-9_]*=.*' | xargs -d '\n')
 else
     echo "Error: .env file not found"
     echo "Please copy .env.example to .env and fill in your values"
