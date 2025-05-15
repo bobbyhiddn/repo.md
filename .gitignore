@@ -25,4 +25,5 @@ ebiten-asteroids
 
 .github/workflows/auth/*.p8
 
-node_modules/
+**/node_modules/
+**/package-lock.json
