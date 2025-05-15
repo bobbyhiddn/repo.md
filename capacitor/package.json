@@ -22,12 +22,12 @@
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
-    "@capacitor/core": "latest",
+    "@capacitor/core": "^6.2.0",
     "@capacitor/ios": "^6.2.0",
-    "@capacitor/splash-screen": "latest"
+    "@capacitor/splash-screen": "^6.0.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "latest",
+    "@capacitor/cli": "^6.2.0",
     "fs-extra": "^11.2.0",
     "path": "^0.12.7",
     "vite": "^5.0.0",
