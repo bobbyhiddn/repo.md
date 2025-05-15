@@ -61,7 +61,7 @@ func generateMarkdown(this js.Value, args []js.Value) interface{} {
 		}
 		originalURL := args[0].String()
 		if !strings.Contains(originalURL, "github.com") {
-			result = Result{Markdown: "Error: Invalid GitHub URL. Must contain 'github.com'."}
+			result = Result{Markdown: "Error: Invalid GitHub URL. Must contain 'github.com'"}
 			sendResult(callback, result)
 			return
 		}
