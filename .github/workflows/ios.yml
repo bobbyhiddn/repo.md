@@ -248,5 +248,7 @@ jobs:
       - name: Clean up
         if: always()
         run: |
-          security delete-keychain build.keychain
+          if [ -f build.keychain ]; then
+            security delete-keychain build.keychain
+          fi
           rm -f capacitor/ios/App/api_key.json
