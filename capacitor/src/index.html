@@ -5,31 +5,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="color-scheme" content="light dark"> <!-- Respects user's system theme preference -->
   <title>repo.md</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
+  <link rel="icon" type="image/png" href="assets/imgs/repo-md.png">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="header">
     <h1>repo.md</h1>
   </header>
 
-  <div class="container">
-    <form id="repoForm">
-      <input type="url" id="github_url" name="github_url" placeholder="e.g., https://github.com/owner/repo" required>
-      <button type="submit" id="submitBtn">Generate Markdown</button>
-    </form>
-
-    <div id="loading" class="loading" style="display:none;">
-        Scribing repository... please wait. This may take a few moments.
+  <div class="hero">
+    <img src="assets/imgs/repo-md.png" alt="repo.md logo" id="hero-logo">
+    <div class="taglines">
+      <h2>Share Code with AI, Anywhere</h2>
+      <p>Instantly convert any GitHub repo into AI-friendly markdown<br>Perfect for ChatGPT, Claude, and mobile conversations</p>
     </div>
-    <div id="error" class="error" style="display:none;"></div>
-    
-    <div id="resultContainer" style="display:none;">
-      <div class="controls">
-        <button id="copyBtn">Copy to Clipboard</button>
-        <button id="downloadBtn">Download .md</button>
+    <form id="repoForm">
+      <input type="url" id="github_url" placeholder="https://github.com/owner/repo" required>
+      <button type="submit" id="submitBtn">Generate</button>
+    </form>
+  </div>
+
+  <div class="container">
+    <div id="loading" class="loading" style="display:none;">
+      Scribing repository... please wait. This may take a few moments.
+    </div>
+
+    <div id="error" class="error" style="display:none;">
+    </div>
+
+    <div id="resultContainer">
+      <div id="welcome" class="result">
+        <pre><code id="welcome-preview"># Welcome to repo.md! 👋
+
+This preview area will show your repository's contents in a format perfect for AI conversations.
+
+For example:
+
+```python
+# Example of what you might see:
+def hello_world():
+    print("Hello from your repository!")
+```
+
+## What you'll get:
+- 📁 File structure
+- 📝 Code contents
+- 🔍 Easy to read format
+- 🤖 AI-friendly markdown
+
+Paste a GitHub repository URL above to get started!</code></pre>
       </div>
-      <div id="result"></div> <!-- Content will be text, not HTML, so pre-wrap is key -->
+
+      <div class="result-actions" style="display:none;">
+        <button id="copyBtn" class="action-btn">Copy to Clipboard</button>
+        <button id="downloadBtn" class="action-btn">Download .md</button>
+      </div>
+      <div id="result" style="display:none;">
+        <pre><code id="markdown"></code></pre>
+      </div>
     </div>
   </div>
 
@@ -38,77 +71,63 @@
   </footer>
 
 <script>
-// JavaScript remains the same as your provided version
-const form=document.getElementById('repoForm');
-const urlInput=document.getElementById('github_url');
-const submitBtn=document.getElementById('submitBtn');
-const loading=document.getElementById('loading'); // Matches your HTML
-const errorDiv=document.getElementById('error'); // Matches your HTML
-const resultContainer=document.getElementById('resultContainer'); // Matches your HTML
-const resultDiv=document.getElementById('result'); // Matches your HTML
-const copyBtn=document.getElementById('copyBtn');
-const downloadBtn=document.getElementById('downloadBtn');
+    document.getElementById('repoForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const github_url = document.getElementById('github_url').value;
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('welcome').style.display = 'none';
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+      document.querySelector('.result-actions').style.display = 'none';
 
-let markdownContentGlobal=''; // Renamed from 'markdown' to avoid conflict
-let currentRepoName=''; // Renamed from 'name'
-
-form.addEventListener('submit',async e=>{
-    e.preventDefault();
-    const githubUrl=urlInput.value; // Renamed from u
-    submitBtn.disabled=true;
-    loading.style.display='block';
-    errorDiv.style.display='none';
-    resultContainer.style.display='none';
-    markdownContentGlobal = ''; // Reset content
-
-    try {
-        const response=await fetch('/generate_markdown',{ // Renamed from r
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({github_url:githubUrl})
+      try {
+        const response = await fetch('/generate_markdown', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ github_url })
         });
-        const data=await response.json(); // Renamed from d
 
-        if(response.ok){
-            markdownContentGlobal=data.markdown;
-            currentRepoName=data.repo_name||'repository'; // Use 'repository' as a safe default
-            resultDiv.textContent=markdownContentGlobal; // Display as text
-            resultContainer.style.display='flex'; // Changed to flex to work with new CSS
-        } else {
-            errorDiv.textContent=data.error||'An unknown error occurred.';
-            errorDiv.style.display='block';
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-    } catch(err) { // Explicitly named error variable
-        console.error('Fetch error:', err);
-        errorDiv.textContent='A server error occurred. Please try again later.';
-        errorDiv.style.display='block';
-    } finally {
-        loading.style.display='none';
-        submitBtn.disabled=false;
-    }
-});
 
-copyBtn.addEventListener('click', () => { // Changed to onclick
-    if (!markdownContentGlobal) return;
-    navigator.clipboard.writeText(markdownContentGlobal)
-        .then(()=>alert('Markdown copied to clipboard!'))
-        .catch(err => { // Explicitly named error variable
-            console.error('Copy failed:', err);
-            alert('Failed to copy markdown. Please try again or copy manually.');
-        });
-});
+        const jsonData = await response.json(); // Parse the JSON response
+        const markdownContent = jsonData.markdown; // Extract the markdown string
+        document.getElementById('markdown').textContent = markdownContent; // Set the extracted markdown
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('welcome').style.display = 'none'; // Ensure welcome is hidden
+        document.getElementById('result').style.display = 'block';
+        document.querySelector('.result-actions').style.display = 'block';
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('welcome').style.display = 'block';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 'An error occurred while generating the markdown. Please check the URL and try again.';
+      }
+    });
 
-downloadBtn.addEventListener('click', () => { // Changed to onclick
-    if (!markdownContentGlobal) return;
-    const blob=new Blob([markdownContentGlobal],{type:'text/markdown;charset=utf-8'}); // Renamed from b
-    const link=document.createElement('a'); // Renamed from l
-    link.href=URL.createObjectURL(blob);
-    link.download=`${currentRepoName.replace(/[^a-zA-Z0-9_.-]/g, '_')}_scribe.md`; // More robust filename, replaces more special characters
-    document.body.appendChild(link); // Required for Firefox
-    link.click();
-    document.body.removeChild(link); // Clean up
-    URL.revokeObjectURL(link.href); // Release object URL
-});
-</script>
+    document.getElementById('copyBtn').addEventListener('click', function() {
+      const markdown = document.getElementById('markdown').textContent;
+      navigator.clipboard.writeText(markdown).then(function() {
+        alert('Copied to clipboard!');
+      }).catch(function(err) {
+        console.error('Could not copy text: ', err);
+      });
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      const markdown = document.getElementById('markdown').textContent;
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'README.md';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    });
+  </script>
 </body>
 </html>

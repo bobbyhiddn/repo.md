@@ -4,11 +4,14 @@ services:
   web:
     build:
       context: .
-      dockerfile: web/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     volumes:
-      - .:/app
+      # Mount only the necessary development files
+      - ./app.py:/app/app.py
+      - ./scribe_core.py:/app/scribe_core.py
+      - ./capacitor/src:/app/capacitor/src
     environment:
       - FLASK_ENV=development
     restart: unless-stopped
