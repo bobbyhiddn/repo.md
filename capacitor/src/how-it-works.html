@@ -32,165 +32,75 @@
           </ul>
         </li>
         <li><strong>Repository Cloning:</strong>
-          <ul>
-            <li><code>app.py</code> creates a temporary directory on the server.</li>
-            <li>It then uses the <code>subprocess</code> module to execute a <code>git clone --depth 1 &lt;repository_url&gt; &lt;temp_dir&gt;</code> command. This efficiently clones only the latest commit of the specified repository.</li>
-          </ul>
-        </li>
-        <li><strong>Markdown Generation (<code>scribe_core.py</code>):</strong>
-          <ul>
-            <li>Once cloned, <code>app.py</code> calls the <code>read_directory_to_markdown</code> function from <code>scribe_core.py</code>.</li>
-            <li>This function recursively traverses the cloned repository's directory structure.</li>
-            <li>It identifies files and directories, respects <code>.gitignore</code> rules (though the current direct call in <code>app.py</code> has <code>ignore_git=True</code>, implying it might be a configurable feature or default behavior), and constructs a hierarchical Markdown representation. This includes file names, directory structures, and potentially snippets of code or file content (depending on <code>scribe_core.py</code>'s internal logic).</li>
-          </ul>
-        </li>
-        <li><strong>Output and Cleanup:</strong>
-          <ul>
-            <li>A watermark (<code>&lt;!-- Generated with repo.md (https://repo-md.com) --&gt;</code>) is appended to the generated Markdown.</li>
-            <li>The Flask application returns the complete Markdown content and the repository name as a JSON response to the frontend.</li>
-            <li>Finally, the temporary directory containing the cloned repository is removed from the server.</li>
           </ul>
         </li>
       </ol>
     </div>
 
-    <div class="section">
-      <h2>Containerization with Docker</h2>
-      <p>Docker is used to package repo.md and its dependencies into a standardized, portable container, ensuring consistent behavior across different environments.</p>
-      
-      <h3><code>Dockerfile</code></h3>
-      <p>The <code>Dockerfile</code> provides the blueprint for building the application image:</p>
-      <ul>
-        <li><strong>Base Image:</strong> Starts from <code>python:3.11-slim</code>, a lightweight official Python image.</li>
-        <li><strong>Working Directory:</strong> Sets <code>/app</code> as the working directory inside the container.</li>
-        <li><strong>System Dependencies:</strong> Installs <code>git</code> using <code>apt-get</code>, which is necessary for cloning repositories.</li>
-        <li><strong>Python Dependencies:</strong> Copies <code>requirements.txt</code> and installs the specified Python packages (like Flask, Gunicorn, pathspec) using <code>pip install --no-cache-dir -r requirements.txt</code>. The <code>--no-cache-dir</code> flag helps keep the image size smaller.</li>
-        <li><strong>Application Code:</strong> Copies the backend logic (<code>app.py</code>, <code>scribe_core.py</code>) and the frontend assets (the entire <code>capacitor/src</code> directory) into the <code>/app</code> directory within the image.</li>
-        <li><strong>Port Exposure:</strong> <code>EXPOSE 8080</code> documents that the application inside the container will listen on port 8080.</li>
-        <li><strong>Execution Command:</strong> <code>CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]</code> specifies the command to run when the container starts. It uses Gunicorn, a robust WSGI HTTP server, to serve the Flask application (<code>app:app</code> means the <code>app</code> object within the <code>app.py</code> file), listening on all available network interfaces (<code>0.0.0.0</code>) on port <code>8080</code>.</li>
-      </ul>
+      <h2>1. Core Webapp Functionality</h2>
+      <p>The following diagram shows how a GitHub repository URL is processed by repo.md to generate Markdown content:</p>
+      <div class="mermaid">
+        flowchart TB
+          subgraph "📱 Web App"
+            A["App"] --> B["URLInput"]
+            A --> C["MarkdownViewer"]
+            B --> D["APIService"]
+            D --> C
+          end
+          
+          style A fill:#61dafb20,stroke:#61dafb
+          style B fill:#61dafb20,stroke:#61dafb
+          style C fill:#61dafb20,stroke:#61dafb
+          style D fill:#61dafb20,stroke:#61dafb
+      </div>
 
-      <h3><code>docker-compose.yml</code></h3>
-      <p>The <code>docker-compose.yml</code> file is used to define and run the multi-container Docker application, primarily for local development:</p>
-      <ul>
-        <li><strong>Service Definition:</strong> Defines a single service named <code>web</code>.</li>
-        <li><strong>Build Configuration:</strong>
-          <ul>
-            <li><code>context: .</code> indicates that the build context (the source files for building the image) is the current directory.</li>
-            <li><code>dockerfile: Dockerfile</code> specifies the Dockerfile to use.</li>
-          </ul>
-        </li>
-        <li><strong>Port Mapping:</strong> <code>ports: - "8080:8080"</code> maps port <code>8080</code> on the host machine to port <code>8080</code> on the container. This allows accessing the web application via <code>http://localhost:8080</code>.</li>
-        <li><strong>Volumes for Live Reloading:</strong>
-          <ul>
-            <li><code>- ./app.py:/app/app.py</code></li>
-            <li><code>- ./scribe_core.py:/app/scribe_core.py</code></li>
-            <li><code>- ./capacitor/src:/app/capacitor/src</code></li>
-            These lines mount the local source files and directories directly into the running container. Any changes made to these local files are immediately reflected inside the container, enabling live reloading without needing to rebuild the Docker image during development.
-          </ul>
-        </li>
-        <li><strong>Environment Variables:</strong> <code>FLASK_ENV=development</code> sets Flask to run in development mode, enabling features like the debugger and auto-reloader.</li>
-        <li><strong>Restart Policy:</strong> <code>restart: unless-stopped</code> ensures the container automatically restarts if it crashes, unless it was explicitly stopped.</li>
-      </ul>
-    </div>
+      <h2>2. Web Application Deployment to Fly.io</h2>
+      <p>This diagram outlines the steps to deploy the repo.md web application to the Fly.io hosting platform:</p>
+      <div class="mermaid">
+        flowchart TB
+          subgraph "🚀 Deployment"
+            A["Local Code"] --> B["Docker Container"]
+            B --> C["Fly.io Cloud"]
+            C --> D["Live Website"]
+          end
+          
+          style A fill:#ff950020,stroke:#ff9500
+          style B fill:#ff950020,stroke:#ff9500
+          style C fill:#ff950020,stroke:#ff9500
+          style D fill:#ff950040,stroke:#ff9500
+      </div>
 
-    <div class="section">
-      <h2>Deployment on Fly.io</h2>
-      <p>repo.md is deployed globally using <a href="https://fly.io" target="_blank" rel="noopener noreferrer">Fly.io</a>, a platform for running full-stack applications and databases close to users.</p>
-      <p>The deployment is configured via the <code>fly.toml</code> file:</p>
-      <ul>
-        <li><strong>Application Name:</strong> <code>app = 'repo-md'</code> defines the unique name of the application on Fly.io.</li>
-        <li><strong>Primary Region:</strong> <code>primary_region = 'den'</code> sets Denver, USA, as the primary region for the application's machines.</li>
-        <li><strong>Build Process:</strong> While the <code>[build]</code> section is empty in the provided <code>fly.toml</code>, Fly.io typically detects the <code>Dockerfile</code> in the project root and uses it to build the application image. This image is then pushed to Fly.io's image registry.</li>
-        <li><strong>HTTP Service Configuration (<code>[http_service]</code>):</strong>
-          <ul>
-            <li><code>internal_port = 8080</code>: Informs Fly.io that the application running inside the VM (Docker container) listens on port 8080. This must match the port Gunicorn is bound to in the <code>Dockerfile</code>.</li>
-            <li><code>force_https = true</code>: Automatically redirects all HTTP traffic to HTTPS.</li>
-            <li><code>auto_stop_machines = 'stop'</code> and <code>auto_start_machines = true</code>: Enable Fly.io's scale-to-zero feature, where machines can be automatically stopped when idle and started up quickly when new requests arrive. This is cost-effective.</li>
-            <li><code>min_machines_running = 0</code>: Specifies that it's acceptable for no machines to be running if there's no traffic (works with auto start/stop).</li>
-            <li><code>processes = ['app']</code>: Refers to the default process group that handles HTTP traffic.</li>
-          </ul>
-        </li>
-        <li><strong>Virtual Machine Configuration (<code>[[vm]]</code>):</strong>
-          <ul>
-            <li><code>memory = '1gb'</code>, <code>cpu_kind = 'shared'</code>, <code>cpus = 1</code>: Define the resources allocated to each virtual machine running the application.</li>
-          </ul>
-        </li>
-        <li><strong>Deployment Command:</strong> Deployment is typically initiated with the <code>fly deploy</code> command in the terminal. Fly.io reads <code>fly.toml</code>, builds the Docker image (or uses an existing one), provisions machines in the specified regions, and deploys the new version of the application.</li>
-      </ul>
-    </div>
-
-    <div class="section">
-      <h2>iOS App via Capacitor & GitHub Actions</h2>
-      <p>repo.md also offers an iOS application, built by wrapping the web application using <a href="https://capacitorjs.com/" target="_blank" rel="noopener noreferrer">Capacitor</a> and automated via GitHub Actions.</p>
-      
-      <h3>Capacitor's Role</h3>
-      <ul>
-        <li>Capacitor (<code>@capacitor/core</code>, <code>@capacitor/cli</code>, <code>@capacitor/ios</code>) is a cross-platform native runtime that allows web applications (built with HTML, CSS, and JavaScript) to run as native mobile applications.</li>
-        <li>The web frontend for repo.md resides in the <code>capacitor/src</code> directory.</li>
-        <li>A build process (typically <code>npm run build</code> within the <code>capacitor</code> directory, which might be defined in <code>capacitor/package.json</code>) compiles these assets into a static <code>capacitor/www</code> directory.</li>
-        <li>The command <code>npx cap sync ios</code> is crucial. It copies the web assets from <code>capacitor/www</code> into the native iOS project located at <code>capacitor/ios/App</code>. It also updates native project configurations based on <code>capacitor.config.json</code>.</li>
-      </ul>
-
-      <h3>GitHub Actions Workflow (<code>.github/workflows/ios.yml</code>)</h3>
-      <p>The <code>ios.yml</code> workflow automates the build and deployment of the iOS app to TestFlight:</p>
-      <ul>
-        <li><strong>Triggers:</strong> The workflow runs automatically on pushes to the <code>main</code> branch if relevant web asset files (<code>**.html</code>, <code>**.js</code>, <code>**.css</code>) are modified. It can also be triggered manually (<code>workflow_dispatch</code>).</li>
-        <li><strong>Permissions:</strong> Grants necessary write permissions for interacting with GitHub content, deployments, and actions (e.g., for updating version variables).</li>
-        <li><strong>Key Jobs:</strong>
-          <ul>
-            <li><code>check_changes</code> & <code>check_match_setup</code>: Preliminary jobs to ensure a build is necessary and that the Fastlane Match repository (for code signing certificates) is properly set up.</li>
-            <li><code>deploy_ios</code>: The main job, running on a <code>macos-15</code> runner, which performs the following steps:
-              <ol>
-                <li><strong>Checkout Code:</strong> Fetches the latest version of the repository.</li>
-                <li><strong>Versioning:</strong>
-                    <ul>
-                        <li>Retrieves the current application version (stored as a GitHub Actions variable <code>vars.CURRENT_VERSION</code> within the 'ios' environment).</li>
-                        <li>Calculates the next version based on manual input (patch, minor, major) or a custom version string provided during a manual trigger.</li>
-                        <li>Updates the <code>CURRENT_VERSION</code> variable in the GitHub 'ios' environment using the GitHub API. This ensures version persistence across workflow runs.</li>
-                    </ul>
-                </li>
-                <li><strong>Setup Environment:</strong> Installs specific versions of Ruby (for Fastlane) and Node.js (for building web assets and running Capacitor CLI).</li>
-                <li><strong>Install Web Dependencies:</strong> Runs <code>npm ci</code> in the <code>capacitor</code> directory to install JavaScript packages.</li>
-                <li><strong>Build Web Assets & Sync with Capacitor:</strong>
-                  <ul>
-                    <li>Executes <code>npm run build</code> (likely defined in <code>capacitor/package.json</code>) to compile the frontend application.</li>
-                    <li>Runs <code>npx cap sync ios</code> to copy the built web assets into the native iOS project and update its configuration.</li>
-                  </ul>
-                </li>
-                <li><strong>Setup Keychain & iOS Dependencies:</strong>
-                  <ul>
-                    <li>Creates a temporary macOS keychain for handling code signing certificates securely.</li>
-                    <li>Installs iOS project dependencies using <code>bundle install</code> (for Ruby gems like Fastlane) and <code>pod install</code> (for CocoaPods) within the <code>capacitor/ios/App</code> directory.</li>
-                  </ul>
-                </li>
-                <li><strong>App Store Connect API Key:</strong> Creates a temporary <code>api_key.json</code> file using secrets (<code>APPLE_KEY_ID</code>, <code>APPLE_ISSUER_ID</code>, <code>APPLE_KEY_CONTENT</code>). This key allows Fastlane to authenticate with App Store Connect for uploading builds.</li>
-                <li><strong>Deploy to TestFlight via Fastlane:</strong>
-                  <ul>
-                    <li>Executes <code>bundle exec fastlane closed_beta</code>. This command invokes a Fastlane "lane" (a predefined sequence of actions in the <code>Fastfile</code> located at <code>capacitor/ios/App/Fastfile</code>).</li>
-                    <li>The <code>closed_beta</code> lane typically handles:
-                      <ul>
-                        <li>Building the iOS application (creating an <code>.ipa</code> file).</li>
-                        <li>Managing code signing using Fastlane Match, which uses a separate Git repository (<code>secrets.MATCH_GIT_URL</code>) to store encrypted certificates and provisioning profiles (decrypted using <code>secrets.MATCH_PASSWORD</code>).</li>
-                        <li>Uploading the signed <code>.ipa</code> file to TestFlight for distribution to beta testers.</li>
-                      </ul>
-                    </li>
-                    <li>This step uses numerous secrets for authentication and configuration (e.g., team IDs, app identifiers, Match credentials).</li>
-                  </ul>
-                </li>
-                <li><strong>Clean Up:</strong> Deletes the temporary keychain and the App Store Connect API key file as a security measure.</li>
-              </ol>
-            </li>
-          </ul>
-        </li>
-      </ul>
-      <p>This automated pipeline ensures that changes to the web application are efficiently built, packaged, and deployed as an updated iOS beta app for testing.</p>
+      <h2>3. iOS App Build & Deployment via GitHub Actions</h2>
+      <p>This diagram illustrates the automated process of building the repo.md iOS application and deploying it to TestFlight using GitHub Actions:</p>
+      <div class="mermaid">
+        flowchart TB
+          subgraph "📱 iOS App"
+            A["Web App"] --> B["Capacitor Wrapper"]
+            B --> C["Native iOS App"]
+            C --> D["TestFlight"]
+          end
+          
+          style A fill:#34c75920,stroke:#34c759
+          style B fill:#34c75920,stroke:#34c759
+          style C fill:#34c75920,stroke:#34c759
+          style D fill:#34c75940,stroke:#34c759
+      </div>
     </div>
 
     <p style="text-align: center; margin-top: 2rem;"><a href="/">Back to Home</a></p>
   </div>
+
   <footer class="footer">
     <p>Powered by Python & Flask. Inspired by GitHub.</p>
   </footer>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      mermaid.initialize({
+        startOnLoad: false // We will call run manually
+      });
+      mermaid.run();
+    });
+  </script>
 </body>
 </html>
