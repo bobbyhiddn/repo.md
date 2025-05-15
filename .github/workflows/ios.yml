@@ -1,0 +1,248 @@
+name: Deploy iOS app to TestFlight on merge
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - '**.html'
+      - '**.js'
+      - '**.css'
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version increment type (patch/minor/major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'Custom version (leave empty for auto-increment)'
+        required: false
+        type: string
+      force_build:
+        description: 'Force build even if no relevant files changed'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  deployments: write
+  actions: write
+
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Check build conditions
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force_build }}" == "true" ]]; then
+            echo "Manual trigger with force build enabled"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual trigger without force build"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "Push trigger with relevant file changes"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+  check_match_setup:
+    needs: check_changes
+    if: needs.check_changes.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      is_initialized: ${{ steps.check.outputs.is_initialized }}
+    steps:
+      - name: Check if match repository is initialized
+        id: check
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          GIT_AUTHORIZATION: ${{ secrets.GIT_AUTHORIZATION }}
+        run: |
+          # Extract repo owner and name from the URL
+          REPO_PATH=$(echo $MATCH_GIT_URL | sed -n 's/.*github.com[:\/]\([^\/]*\/[^\/]*\).*/\1/p' | sed 's/\.git$//')
+          
+          # Check repository contents
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $GIT_AUTHORIZATION" \
+            "https://api.github.com/repos/${REPO_PATH}/contents")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Match repository exists and contains certificates."
+            echo "is_initialized=true" >> $GITHUB_OUTPUT
+          else
+            echo "Error: Match repository is empty or not initialized."
+            echo "Please run the iOS Match Init workflow first to set up certificates."
+            echo "is_initialized=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  deploy_ios:
+    needs: [check_changes, check_match_setup]
+    if: needs.check_changes.outputs.should_build == 'true' && needs.check_match_setup.outputs.is_initialized == 'true'
+    name: Deploy beta build to TestFlight
+    runs-on: macos-latest
+    environment: ios
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get current version
+        id: version
+        run: |
+          # Default to 1.0.0 if not set
+          echo "CURRENT_VERSION=${CURRENT_VERSION:-1.0.0}" >> $GITHUB_OUTPUT
+          echo $CURRENT_VERSION
+        env:
+          CURRENT_VERSION: ${{ vars.CURRENT_VERSION }}
+
+      - name: Calculate next version
+        id: next_version
+        run: |
+          IFS='.' read -r major minor patch <<< "${{ steps.version.outputs.CURRENT_VERSION }}"
+          if [[ -n "${{ github.event.inputs.custom_version }}" ]]; then
+            next_version="${{ github.event.inputs.custom_version }}"
+          else
+            case "${{ github.event.inputs.version_type }}" in
+              major)
+                next_version="$((major + 1)).0.0"
+                ;;
+              minor)
+                next_version="${major}.$((minor + 1)).0"
+                ;;
+              *)
+                next_version="${major}.${minor}.$((patch + 1))"
+                ;;
+            esac
+          fi
+          echo "Calculated next version: $next_version"
+          echo "NEXT_VERSION=$next_version" >> $GITHUB_OUTPUT
+
+      - name: Update version in GitHub environment
+        if: success()
+        env:
+          GIT_AUTHORIZATION: ${{ secrets.GIT_AUTHORIZATION }}
+          NEXT_VERSION: ${{ steps.next_version.outputs.NEXT_VERSION }}
+        run: |
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "Error: Next version is empty"
+            exit 1
+          fi
+          
+          echo "Updating to version: $NEXT_VERSION"
+          
+          # Update using curl
+          response=$(curl -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GIT_AUTHORIZATION" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/environments/ios/variables/CURRENT_VERSION" \
+            -d "{\"name\":\"CURRENT_VERSION\",\"value\":\"$NEXT_VERSION\"}" \
+            -w "\n%{http_code}")
+          
+          status_code=$(echo "$response" | tail -n1)
+          response_body=$(echo "$response" | sed '$d')
+          
+          echo "Response: $response_body"
+          echo "Status code: $status_code"
+          
+          if [ "$status_code" -ne 200 ] && [ "$status_code" -ne 204 ]; then
+            echo "Failed to update version"
+            exit 1
+          else
+            echo "Successfully updated version to $NEXT_VERSION"
+          fi
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2.6'
+          bundler-cache: true
+          working-directory: 'capacitor/ios/App'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './capacitor/package-lock.json'
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          cd capacitor
+          npm ci
+
+      - name: Build and copy assets
+        run: |
+          GOOS=js GOARCH=wasm go build -o capacitor/src/assets/game.wasm
+          cd capacitor
+          npm run build
+          node scripts/copy-assets.js
+          npx cap sync ios
+
+      # Setup keychain for certificates
+      - name: Setup Keychain
+        run: |
+          security create-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" build.keychain
+          security set-keychain-settings
+
+      - name: Install iOS dependencies
+        run: |
+          cd capacitor/ios/App
+          bundle install
+          pod install
+
+      - name: Create App Store Connect API key
+        working-directory: capacitor/ios/App
+        run: |
+          # Create the API key JSON file with properly formatted key content
+          cat > api_key.json << EOL
+          {
+            "key_id": "${{ secrets.APPLE_KEY_ID }}",
+            "issuer_id": "${{ secrets.APPLE_ISSUER_ID }}",
+            "key": "-----BEGIN PRIVATE KEY-----\n${{ secrets.APPLE_KEY_CONTENT }}\n-----END PRIVATE KEY-----",
+            "in_house": false
+          }
+          EOL
+
+      - name: Deploy iOS Beta to TestFlight via Fastlane
+        env:
+          APP_STORE_CONNECT_TEAM_ID: "${{ secrets.APP_STORE_CONNECT_TEAM_ID }}"
+          DEVELOPER_APP_ID: "${{ secrets.DEVELOPER_APP_ID }}"
+          DEVELOPER_APP_IDENTIFIER: "${{ secrets.DEVELOPER_APP_IDENTIFIER }}"
+          DEVELOPER_PORTAL_TEAM_ID: "${{ secrets.DEVELOPER_PORTAL_TEAM_ID }}"
+          MATCH_PASSWORD: "${{ secrets.MATCH_PASSWORD }}"
+          MATCH_GIT_URL: "${{ secrets.MATCH_GIT_URL }}"
+          GIT_AUTHORIZATION: "${{ secrets.GIT_AUTHORIZATION }}"
+          TEMP_KEYCHAIN_PASSWORD: "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}"
+          APPLE_KEY_ID: "${{ secrets.APPLE_KEY_ID }}"
+          APPLE_ISSUER_ID: "${{ secrets.APPLE_ISSUER_ID }}"
+          APPLE_KEY_CONTENT: "${{ secrets.APPLE_KEY_CONTENT }}"
+          VERSION_TYPE: ${{ github.event.inputs.version_type }}
+          CUSTOM_VERSION: ${{ steps.next_version.outputs.NEXT_VERSION }}
+        run: |
+          cd capacitor/ios/App
+          bundle exec fastlane closed_beta
+
+      - name: Clean up
+        if: always()
+        run: |
+          security delete-keychain build.keychain
+          rm -f capacitor/ios/App/api_key.json

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <title>GoAF Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            overscroll-behavior: none;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1a1a1a;
+                color: #ffffff;
+            }
+            .container {
+                background: #2d2d2d !important;
+            }
+            #message {
+                color: #ffffff !important;
+            }
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px;
+            max-width: 90%;
+            width: 400px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+            touch-action: manipulation;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #message {
+            margin: 20px;
+            font-size: 24px;
+            color: #333;
+        }
+
+        #error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+            max-width: 80%;
+        }
+
+        @supports (-webkit-touch-callout: none) {
+            /* iOS-specific fixes */
+            body {
+                min-height: -webkit-fill-available;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GoAF Framework Demo</h1>
+        <div id="message">Click the button to greet!</div>
+        <button onclick="greet()">Say Hello</button>
+    </div>
+    <div id="error-message"></div>
+
+    <script>
+        // Error handling
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error('Window Error:', {msg, url, lineNo, columnNo, error});
+            showError(`Error: ${msg}\nLine: ${lineNo}`);
+            return false;
+        };
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            console.error(message);
+        }
+
+        // Asset path helper for Capacitor
+        function getAssetPath(filename) {
+            return window.Capacitor ? `public/assets/${filename}` : `assets/${filename}`;
+        }
+
+        // Initialize WASM
+        function initializeWasm() {
+            const go = new Go();
+            WebAssembly.instantiateStreaming(fetch(getAssetPath('main.wasm')), go.importObject)
+                .then((result) => {
+                    go.run(result.instance);
+                    console.log("WASM loaded successfully!");
+                })
+                .catch((err) => {
+                    console.error("Failed to load WASM:", err);
+                    showError("Failed to initialize application. Please try again.");
+                });
+        }
+
+        // Load wasm_exec.js dynamically
+        const script = document.createElement('script');
+        script.src = getAssetPath('wasm_exec.js');
+        script.onload = initializeWasm;
+        script.onerror = (e) => {
+            console.error('Failed to load wasm_exec.js:', e);
+            showError('Failed to load required resources. Please check your connection and try again.');
+        };
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

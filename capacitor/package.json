@@ -1,0 +1,37 @@
+{
+  "name": "goaf-app",
+  "version": "1.0.0",
+  "description": "Go App Framework - A modern framework for building cross-platform apps with Go and Capacitor",
+  "type": "module",
+  "keywords": [
+    "capacitor",
+    "mobile",
+    "go",
+    "wasm",
+    "cross-platform"
+  ],
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "npm run build && npx cap sync",
+    "ios:prepare": "npm run prepare && node scripts/copy-assets.js ios",
+    "ios:build": "npm run ios:prepare && npx cap open ios",
+    "android:prepare": "npm run prepare && node scripts/copy-assets.js android",
+    "android:build": "npm run android:prepare && npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "latest",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/splash-screen": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "latest",
+    "fs-extra": "^11.2.0",
+    "path": "^0.12.7",
+    "vite": "^5.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}

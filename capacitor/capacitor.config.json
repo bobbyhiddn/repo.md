@@ -1,0 +1,27 @@
+{
+  "appId": "io.goaf.app",
+  "appName": "GoAF App",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "iosScheme": "file",
+    "androidScheme": "file",
+    "hostname": "app",
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 1000,
+      "backgroundColor": "#FFFFFF",
+      "spinnerColor": "#000000"
+    },
+    "CapacitorHaptics": {
+      "enabled": true
+    }
+  },
+  "ios": {
+    "orientation": "landscape"
+  }
+}

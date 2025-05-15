@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark"> <!-- Respects user's system theme preference -->
+  <title>repo.md</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+</head>
+<body>
+  <header class="header">
+    <h1>repo.md</h1>
+  </header>
+
+  <div class="container">
+    <form id="repoForm">
+      <input type="url" id="github_url" name="github_url" placeholder="e.g., https://github.com/owner/repo" required>
+      <button type="submit" id="submitBtn">Generate Markdown</button>
+    </form>
+
+    <div id="loading" class="loading" style="display:none;">
+        Scribing repository... please wait. This may take a few moments.
+    </div>
+    <div id="error" class="error" style="display:none;"></div>
+    
+    <div id="resultContainer" style="display:none;">
+      <div class="controls">
+        <button id="copyBtn">Copy to Clipboard</button>
+        <button id="downloadBtn">Download .md</button>
+      </div>
+      <div id="result"></div> <!-- Content will be text, not HTML, so pre-wrap is key -->
+    </div>
+  </div>
+
+  <footer class="footer"> <!-- Changed tag to div with class for consistency -->
+    <p>Powered by Python &amp; Flask. Inspired by GitHub.</p>
+  </footer>
+
+<script>
+// JavaScript remains the same as your provided version
+const form=document.getElementById('repoForm');
+const urlInput=document.getElementById('github_url');
+const submitBtn=document.getElementById('submitBtn');
+const loading=document.getElementById('loading'); // Matches your HTML
+const errorDiv=document.getElementById('error'); // Matches your HTML
+const resultContainer=document.getElementById('resultContainer'); // Matches your HTML
+const resultDiv=document.getElementById('result'); // Matches your HTML
+const copyBtn=document.getElementById('copyBtn');
+const downloadBtn=document.getElementById('downloadBtn');
+
+let markdownContentGlobal=''; // Renamed from 'markdown' to avoid conflict
+let currentRepoName=''; // Renamed from 'name'
+
+form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const githubUrl=urlInput.value; // Renamed from u
+    submitBtn.disabled=true;
+    loading.style.display='block';
+    errorDiv.style.display='none';
+    resultContainer.style.display='none';
+    markdownContentGlobal = ''; // Reset content
+
+    try {
+        const response=await fetch('/generate_markdown',{ // Renamed from r
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({github_url:githubUrl})
+        });
+        const data=await response.json(); // Renamed from d
+
+        if(response.ok){
+            markdownContentGlobal=data.markdown;
+            currentRepoName=data.repo_name||'repository'; // Use 'repository' as a safe default
+            resultDiv.textContent=markdownContentGlobal; // Display as text
+            resultContainer.style.display='flex'; // Changed to flex to work with new CSS
+        } else {
+            errorDiv.textContent=data.error||'An unknown error occurred.';
+            errorDiv.style.display='block';
+        }
+    } catch(err) { // Explicitly named error variable
+        console.error('Fetch error:', err);
+        errorDiv.textContent='A server error occurred. Please try again later.';
+        errorDiv.style.display='block';
+    } finally {
+        loading.style.display='none';
+        submitBtn.disabled=false;
+    }
+});
+
+copyBtn.addEventListener('click', () => { // Changed to onclick
+    if (!markdownContentGlobal) return;
+    navigator.clipboard.writeText(markdownContentGlobal)
+        .then(()=>alert('Markdown copied to clipboard!'))
+        .catch(err => { // Explicitly named error variable
+            console.error('Copy failed:', err);
+            alert('Failed to copy markdown. Please try again or copy manually.');
+        });
+});
+
+downloadBtn.addEventListener('click', () => { // Changed to onclick
+    if (!markdownContentGlobal) return;
+    const blob=new Blob([markdownContentGlobal],{type:'text/markdown;charset=utf-8'}); // Renamed from b
+    const link=document.createElement('a'); // Renamed from l
+    link.href=URL.createObjectURL(blob);
+    link.download=`${currentRepoName.replace(/[^a-zA-Z0-9_.-]/g, '_')}_scribe.md`; // More robust filename, replaces more special characters
+    document.body.appendChild(link); // Required for Firefox
+    link.click();
+    document.body.removeChild(link); // Clean up
+    URL.revokeObjectURL(link.href); // Release object URL
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+name: Initialize iOS Match Certificates
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  check_existing:
+    runs-on: ubuntu-latest
+    outputs:
+      should_continue: ${{ steps.check.outputs.should_continue }}
+    steps:
+      - name: Check if certificates exist for this app
+        id: check
+        env:
+          GIT_AUTHORIZATION: ${{ secrets.GIT_AUTHORIZATION }}
+          DEVELOPER_APP_IDENTIFIER: ${{ secrets.DEVELOPER_APP_IDENTIFIER }}
+        run: |
+          # Clone the match repository to check its contents
+          git clone https://$GIT_AUTHORIZATION@github.com/bobbyhiddn/fastlane.git match_repo
+          cd match_repo
+          
+          # Check for app-specific certificate patterns
+          CERT_EXISTS=false
+          
+          if [ -d "profiles/appstore" ]; then
+            # Check for distribution profile with exact naming pattern
+            if [ -f "profiles/appstore/AppStore_${DEVELOPER_APP_IDENTIFIER}.mobileprovision" ]; then
+              echo "Found existing provisioning profile for ${DEVELOPER_APP_IDENTIFIER}"
+              CERT_EXISTS=true
+            fi
+          fi
+          
+          # Clean up
+          cd ..
+          rm -rf match_repo
+          
+          if [ "$CERT_EXISTS" = true ]; then
+            echo "Certificates and profiles already exist for this app."
+            echo "should_continue=false" >> $GITHUB_OUTPUT
+          else
+            echo "No existing certificates found for this app. Proceeding with initialization."
+            echo "should_continue=true" >> $GITHUB_OUTPUT
+          fi
+
+  setup_certificates:
+    needs: check_existing
+    if: needs.check_existing.outputs.should_continue == 'true'
+    runs-on: macos-latest
+    env:
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_URL: "https://${{ secrets.GIT_AUTHORIZATION }}@github.com/bobbyhiddn/fastlane.git"
+      DEVELOPER_APP_IDENTIFIER: ${{ secrets.DEVELOPER_APP_IDENTIFIER }}
+      DEVELOPER_PORTAL_TEAM_ID: ${{ secrets.DEVELOPER_PORTAL_TEAM_ID }}
+      APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+      APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
+      APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+      KEYCHAIN_PASSWORD: ${{ secrets.TEMP_KEYCHAIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2.6'
+          bundler-cache: true
+          working-directory: './capacitor/ios/App'
+
+      - name: Setup temporary keychain
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings
+
+      - name: Create App Store Connect API key
+        working-directory: capacitor/ios/App
+        run: |
+          cat > api_key.json << EOL
+          {
+            "key_id": "$APPLE_KEY_ID",
+            "issuer_id": "$APPLE_ISSUER_ID",
+            "key": "-----BEGIN PRIVATE KEY-----\n$APPLE_KEY_CONTENT\n-----END PRIVATE KEY-----",
+            "in_house": false
+          }
+          EOL
+
+      - name: Initialize Match for App
+        run: |
+          cd capacitor/ios/App
+          bundle install
+          
+          echo "Initializing match for $DEVELOPER_APP_IDENTIFIER..."
+          bundle exec fastlane match appstore \
+            --force_for_new_devices true \
+            --generate_apple_certs true \
+            --app_identifier "$DEVELOPER_APP_IDENTIFIER" \
+            --readonly false \
+            --skip_confirmation true \
+            --verbose \
+            --keychain_name build.keychain \
+            --keychain_password "$KEYCHAIN_PASSWORD" \
+            --api_key_path "api_key.json"
+
+      - name: Clean up
+        if: always()
+        run: |
+          security delete-keychain build.keychain
+          rm -f capacitor/ios/App/api_key.json

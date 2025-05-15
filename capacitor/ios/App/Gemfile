@@ -1,0 +1,11 @@
+source "https://rubygems.org"
+
+ruby "3.2.6"
+
+gem "fastlane"
+gem "logger"
+gem "fiddle"
+gem "mutex_m"
+gem "abbrev"
+gem "highline"
+gem "pry"

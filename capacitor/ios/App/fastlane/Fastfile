@@ -1,0 +1,81 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Push a new beta build to TestFlight"
+  desc "Required environment variables:"
+  desc "  APPLE_KEY_ID: App Store Connect API Key ID"
+  desc "  APPLE_ISSUER_ID: App Store Connect API Issuer ID"
+  desc "  APPLE_KEY_CONTENT: App Store Connect API Key Content"
+  desc "  DEVELOPER_APP_IDENTIFIER: Bundle identifier of your app"
+  desc "  APP_STORE_CONNECT_TEAM_ID: App Store Connect Team ID"
+  desc "  CUSTOM_VERSION: Version number to set (e.g., 1.3.0)"
+  lane :closed_beta do
+    setup_ci if ENV['CI']
+
+    # Configure App Store Connect API
+    app_store_connect_api_key(
+      key_id: ENV["APPLE_KEY_ID"],
+      issuer_id: ENV["APPLE_ISSUER_ID"],
+      key_content: "-----BEGIN PRIVATE KEY-----\n#{ENV['APPLE_KEY_CONTENT']}\n-----END PRIVATE KEY-----",
+      in_house: false,
+      is_key_content_base64: false
+    )
+
+    # Set version number from GitHub environment
+    UI.message("Setting version to: #{ENV['CUSTOM_VERSION']}")
+    increment_version_number(
+      version_number: ENV["CUSTOM_VERSION"],
+      xcodeproj: "App.xcodeproj"
+    )
+    
+    # Auto-increment build number based on TestFlight
+    current_build_number = latest_testflight_build_number(
+      api_key: lane_context[SharedValues::APP_STORE_CONNECT_API_KEY],
+      app_identifier: ENV["DEVELOPER_APP_IDENTIFIER"],
+      team_id: ENV["APP_STORE_CONNECT_TEAM_ID"]
+    ) rescue 0
+    
+    increment_build_number(
+      build_number: current_build_number + 1,
+      xcodeproj: "App.xcodeproj"
+    )
+
+    # Sync certificates and profiles
+    sync_code_signing(
+      type: "appstore",
+      app_identifier: ENV["DEVELOPER_APP_IDENTIFIER"],
+      git_url: ENV["MATCH_GIT_URL"],
+      readonly: true,
+      keychain_name: "build.keychain",
+      keychain_password: ENV["TEMP_KEYCHAIN_PASSWORD"]
+    )
+
+    # Update code signing settings
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "App.xcodeproj",
+      team_id: ENV["DEVELOPER_PORTAL_TEAM_ID"],
+      code_sign_identity: "iPhone Distribution",
+      profile_name: "match AppStore #{ENV['DEVELOPER_APP_IDENTIFIER']}",
+      bundle_identifier: ENV["DEVELOPER_APP_IDENTIFIER"]
+    )
+
+    # Build the app
+    build_ios_app(
+      scheme: "App",
+      workspace: "App.xcworkspace",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: { 
+          ENV["DEVELOPER_APP_IDENTIFIER"] => "match AppStore #{ENV['DEVELOPER_APP_IDENTIFIER']}"
+        }
+      }
+    )
+
+    # Upload to TestFlight and wait for processing
+    upload_to_testflight(
+      skip_waiting_for_build_processing: false,
+      wait_processing_interval: 30
+    )
+  end
+end

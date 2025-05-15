@@ -1,0 +1,10 @@
+GoAF (Go App Framework)
+Copyright (c) 2025 Micah Longmire
+
+Attribution Requirement:
+When using GoAF (Go App Framework) in your project, please include the following attribution in your project's documentation and/or about section:
+
+"This application was built using GoAF (Go App Framework), created by Micah Longmire.
+GitHub: https://github.com/bobbyhiddn/GoAF"
+
+This attribution requirement is in addition to, and does not replace, the terms of the MIT License under which the software is distributed.

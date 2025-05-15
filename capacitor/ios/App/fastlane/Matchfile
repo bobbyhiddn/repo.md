@@ -1,0 +1,6 @@
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+app_identifier([ENV["DEVELOPER_APP_IDENTIFIER"]])
+
+# For all available options run `fastlane match --help`
