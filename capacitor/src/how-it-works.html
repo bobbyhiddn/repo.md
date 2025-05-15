@@ -19,209 +19,207 @@
   </header>
   <div class="container">
     <h1>How repo.md Works</h1>
-    <p class="intro">
-      <code>repo.md</code> transforms GitHub repositories into comprehensive Markdown documents.
-      This page delves into the technical details of its core functionality, how it's containerized with Docker,
-      deployed to Fly.io via GitHub Actions, and how an associated iOS application is built and deployed
-      to TestFlight using GitHub Actions.
-    </p>
+    <p class="intro">repo.md transforms GitHub repositories into comprehensive Markdown documents. This page delves into the technical details of its core functionality, how the web application is deployed to Fly.io, and how the companion iOS application is built and distributed to TestFlight.</p>
 
     <div class="section">
-      <h2>1. Core Functionality: GitHub to Markdown</h2>
-      <p>The primary function of <code>repo.md</code> is to convert a GitHub repository into a single Markdown file. Here's the process:</p>
+      <h2>1. Core Web App: GitHub URL to Markdown</h2>
+      <p>The primary function of repo.md is to take a public GitHub repository URL and generate a single Markdown document representing its structure and content. This process is handled by a Python Flask backend.</p>
       <ol>
-        <li><strong>User Input & Backend Request:</strong>
+        <li><strong>User Input:</strong> A user enters a GitHub repository URL into the input field on the <a href="/">repo.md homepage</a> (<code>capacitor/src/index.html</code>).</li>
+        <li><strong>API Request:</strong> Upon submission, the frontend JavaScript makes an asynchronous POST request to the <code>/generate_markdown</code> API endpoint.</li>
+        <li><strong>Backend Processing (<code>app.py</code>):</strong>
           <ul>
-            <li>The user submits a GitHub URL via the web interface (<code>index.html</code>).</li>
-            <li>JavaScript on the frontend sends this URL via a POST request to the Flask backend (<code>app.py</code>) at the <code>/generate_markdown</code> endpoint.</li>
-          </ul>
-        </li>
-        <li><strong>Repository Cloning & Processing:</strong>
-          <ul>
-            <li>The backend validates the URL and clones the repository into a temporary directory using <code>git clone --depth 1</code>.</li>
+            <li>The Flask application receives the GitHub URL.</li>
+            <li>It creates a temporary directory to clone the repository.</li>
+            <li>It uses a <code>subprocess</code> to execute <code>git clone --depth 1 <github_url> <temp_dir></code>. This clones only the latest commit to save time and space.</li>
+            <li>If the clone is successful, it calls the <code>read_directory_to_markdown</code> function from <code>scribe_core.py</code>.</li>
           </ul>
         </li>
         <li><strong>Markdown Generation (<code>scribe_core.py</code>):</strong>
           <ul>
-            <li>The <code>scribe_core.py</code> module is invoked.</li>
-            <li>It reads and respects <code>.gitignore</code> rules (using the <code>pathspec</code> library) to exclude specified files and directories.</li>
-            <li>It recursively traverses the repository:
-              <ul>
-                <li>Directories are represented as Markdown headers (e.g., <code>## /path/to/dir/</code>).</li>
-                <li>Readable text files are included within Markdown code blocks (<code>```</code>).</li>
-                <li>Binary or unreadable files are marked as <code>[non-readable]</code>.</li>
-              </ul>
-            </li>
+            <li>The <code>read_directory_to_markdown</code> function recursively traverses the cloned repository's directory structure.</li>
+            <li>It respects <code>.gitignore</code> files found in the repository root to exclude unwanted files and directories, using the <code>pathspec</code> library.</li>
+            <li>For each file, it checks if it's readable as text. Binary or unreadable files are marked as such.</li>
+            <li>Readable file contents are embedded within Markdown code blocks, prefixed by a header indicating their path. Directories are represented as Markdown headers.</li>
+            <li>The function returns a single, large Markdown string.</li>
           </ul>
         </li>
-        <li><strong>Response & Display:</strong>
-          <ul>
-            <li>The generated Markdown, along with repository metadata (name, URL, timestamp), is sent back to the frontend as a JSON response. A watermark is added to the Markdown.</li>
-            <li>The frontend JavaScript then displays this Markdown, offering "Copy to Clipboard" and "Download .md" buttons.</li>
-          </ul>
-        </li>
-        <li><strong>Cleanup:</strong>
-          <ul>
-            <li>The temporary directory used for cloning the repository is deleted from the server.</li>
-          </ul>
-        </li>
+        <li><strong>Response:</strong> <code>app.py</code> sends the generated Markdown content (and the repository name) back to the frontend as a JSON response.</li>
+        <li><strong>Display:</strong> The frontend JavaScript populates a <code><pre><code></code> block with the received Markdown and enables the "Copy to Clipboard" and "Download .md" buttons.</li>
+        <li><strong>Cleanup:</strong> The temporary directory used for cloning is removed from the server.</li>
       </ol>
-      <p>This diagram illustrates the core web application flow:</p>
+      <p>The following diagram shows how a GitHub repository URL is processed by repo.md to generate Markdown content:</p>
       <div class="mermaid">
-        graph LR
-            A[User enters GitHub URL in Frontend (index.html)] --> B{Frontend JS (index.html)};
-            B -- POST /generate_markdown --> C[Flask Backend (app.py)];
-            C -- Validates URL & Clones Repo --> D[Temporary Directory];
-            C -- Invokes --> E[Scribe Core (scribe_core.py)];
-            E -- Reads .gitignore --> F{PathSpec Library};
-            F -- Filters files --> E;
-            E -- Recursively reads files/dirs --> G[Markdown String];
-            G -- Adds Header/Timestamp --> C;
-            C -- Returns JSON (Markdown + Repo Name) --> B;
-            B -- Displays Markdown & Buttons (index.html) --> H[User sees Markdown/Downloads];
+        flowchart TB
+          subgraph "📱 Web App"
+            A["App"] --> B["URLInput"]
+            A --> C["MarkdownViewer"]
+            B --> D["APIService"]
+            D --> C
+          end
 
-            style A fill:#f9f,stroke:#333,stroke-width:2px
-            style B fill:#ccf,stroke:#333,stroke-width:2px
-            style C fill:#fcc,stroke:#333,stroke-width:2px
-            style D fill:#ccc,stroke:#333,stroke-width:2px
-            style E fill:#cfc,stroke:#333,stroke-width:2px
-            style F fill:#cff,stroke:#333,stroke-width:2px
-            style G fill:#ffc,stroke:#333,stroke-width:2px
-            style H fill:#f9f,stroke:#333,stroke-width:2px
+          style A fill:#61dafb20,stroke:#61dafb
+          style B fill:#61dafb20,stroke:#61dafb
+          style C fill:#61dafb20,stroke:#61dafb
+          style D fill:#61dafb20,stroke:#61dafb
       </div>
     </div>
 
     <div class="section">
-      <h2>2. Web Application Deployment to Fly.io</h2>
-      <p>The <code>repo.md</code> web application is continuously deployed to <a href="https://fly.io" target="_blank" rel="noopener">Fly.io</a> using GitHub Actions. This ensures that the latest changes to the <code>main</code> branch are automatically built and made live.</p>
+      <h2>2. Web App Deployment to Fly.io</h2>
+      <p>The repo.md web application is containerized using Docker and deployed to the Fly.io platform. This process is automated via a GitHub Actions workflow.</p>
       <ol>
-        <li><strong>Trigger:</strong> A push to the <code>main</code> branch automatically triggers the <code>.github/workflows/fly-deploy.yml</code> GitHub Action.</li>
-        <li><strong>Action Steps:</strong>
+        <li><strong>Trigger:</strong> A push to the <code>main</code> branch of the GitHub repository triggers the <code>.github/workflows/fly-deploy.yml</code> workflow.</li>
+        <li><strong>GitHub Actions Workflow:</strong>
           <ul>
-            <li>The repository code is checked out.</li>
-            <li>The Fly.io command-line tool (<code>flyctl</code>) is set up and authenticated using a <code>FLY_API_TOKEN</code> secret.</li>
-            <li>The <code>flyctl deploy --remote-only</code> command is executed. This instructs Fly.io to:
+            <li>The job runs on an <code>ubuntu-latest</code> runner.</li>
+            <li><code>actions/checkout@v4</code>: The repository code is checked out.</li>
+            <li><code>superfly/flyctl-actions/setup-flyctl@master</code>: The Fly.io command-line tool (<code>flyctl</code>) is installed and configured.</li>
+            <li><code>flyctl deploy --remote-only</code>: This command instructs Fly.io to build and deploy the application.
               <ul>
-                <li>Use the project's <code>Dockerfile</code> to build the application image on Fly.io's remote builders. The Dockerfile sets up Python, installs dependencies, and copies application code.</li>
-                <li>Use <code>fly.toml</code> for deployment configuration (app name, region, services, VM resources).</li>
+                <li>Fly.io uses the <code>Dockerfile</code> present in the root of the repository for building.</li>
+                <li>The <code>FLY_API_TOKEN</code> secret is used for authentication.</li>
               </ul>
             </li>
           </ul>
         </li>
-        <li><strong>Live Application:</strong> Once deployed, the updated web application is live and accessible via its Fly.io URL.</li>
+        <li><strong>Docker Build (defined in <code>Dockerfile</code>):</strong>
+          <ul>
+            <li>Starts from a <code>python:3.11-slim</code> base image.</li>
+            <li>Installs <code>git</code> (for the cloning functionality of the app itself).</li>
+            <li>Copies <code>requirements.txt</code> and installs Python dependencies (Flask, pathspec, gunicorn).</li>
+            <li>Copies the backend application files (<code>app.py</code>, <code>scribe_core.py</code>).</li>
+            <li>Copies the frontend static assets from <code>capacitor/src/</code> into the image at <code>/app/capacitor/src/</code>. Flask is configured to serve these.</li>
+            <li>Exposes port <code>8080</code>.</li>
+            <li>The <code>CMD</code> is set to <code>["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]</code> to run the Flask app using Gunicorn.</li>
+          </ul>
+        </li>
+        <li><strong>Fly.io Deployment (configured in <code>fly.toml</code>):</strong>
+          <ul>
+            <li>The application is named <code>repo-md</code> and primarily runs in the <code>den</code> (Denver) region.</li>
+            <li>The HTTP service listens on internal port <code>8080</code>, forces HTTPS, and auto-starts/stops machines based on traffic.</li>
+            <li>Virtual machines are configured with 1GB RAM and 1 shared CPU.</li>
+          </ul>
+        </li>
+        <li><strong>Live Application:</strong> Once deployed, the updated web application is live on <a href="https://repo-md.com" target="_blank">repo-md.com</a>.</li>
       </ol>
-      <p>This diagram outlines the deployment process:</p>
+      <p>This diagram outlines the steps to deploy the repo.md web application to the Fly.io hosting platform:</p>
       <div class="mermaid">
-        graph TD
-            A[Push to 'main' branch] --> B{GitHub Action: Fly Deploy};
-            B -- Uses `actions/checkout@v4` --> C[Checkout Code];
-            C --> D[Setup Flyctl (superfly/flyctl-actions/setup-flyctl@master)];
-            D -- FLY_API_TOKEN secret --> E[Run `flyctl deploy --remote-only`];
-            E -- Uses `/Dockerfile` & `/fly.toml` --> F[Fly.io Build & Deploy];
-            F --> G[Application Live on Fly.io];
+        flowchart TB
+          subgraph "🚀 Deployment"
+            A["Local Code"] --> B["Docker Container"]
+            B --> C["Fly.io Cloud"]
+            C --> D["Live Website"]
+          end
 
-            style A fill:#aaffaa,stroke:#333,stroke-width:2px
-            style B fill:#ffccaa,stroke:#333,stroke-width:2px
-            style C fill:#aaaaff,stroke:#333,stroke-width:2px
-            style D fill:#aaaaff,stroke:#333,stroke-width:2px
-            style E fill:#aaaaff,stroke:#333,stroke-width:2px
-            style F fill:#aaccaa,stroke:#333,stroke-width:2px
-            style G fill:#aaffaa,stroke:#333,stroke-width:2px
+          style A fill:#ff950020,stroke:#ff9500
+          style B fill:#ff950020,stroke:#ff9500
+          style C fill:#ff950020,stroke:#ff9500
+          style D fill:#ff950040,stroke:#ff9500
       </div>
     </div>
 
     <div class="section">
-      <h2>3. iOS App Build & Deployment to TestFlight (GoAF Demo)</h2>
-      <p>
-        The repository also includes a sophisticated CI/CD pipeline (<code>.github/workflows/ios.yml</code>)
-        for building and deploying an associated iOS application to TestFlight. This app is part of the "GoAF" (Go App Framework) demo
-        and uses Capacitor to wrap web content (likely a Go/WASM application) into a native iOS shell.
-        Fastlane is used for build automation, and Fastlane Match for managing code signing certificates.
-      </p>
+      <h2>3. iOS App Build & Deployment via GitHub Actions</h2>
+      <p>repo.md also exists as an iOS application, built using Capacitor to wrap the web application. The build and deployment to TestFlight are automated using GitHub Actions and Fastlane.</p>
+
+      <h3>3.1. Initial Setup: iOS Match Certificates (<code>ios-match-init.yml</code>)</h3>
+      <p>This is a one-time (or infrequent) manual workflow to initialize code signing certificates and provisioning profiles using Fastlane Match. Match stores these securely in a separate private Git repository (<code>bobbyhiddn/fastlane</code>).</p>
+      <ol>
+        <li><strong>Manual Trigger:</strong> This workflow (<code>.github/workflows/ios-match-init.yml</code>) is run manually via <code>workflow_dispatch</code>.</li>
+        <li><strong>Check Existing:</strong> It first checks if certificates/profiles for the <code>DEVELOPER_APP_IDENTIFIER</code> already exist in the Match repository to prevent duplicates.</li>
+        <li><strong>Setup Certificates (if needed):</strong>
+          <ul>
+            <li>Runs on a <code>macos-latest</code> runner.</li>
+            <li>Sets up Ruby and Bundler (for Fastlane).</li>
+            <li>Creates a temporary keychain.</li>
+            <li>Generates an App Store Connect API key file (<code>api_key.json</code>) using secrets.</li>
+            <li>Runs <code>bundle exec fastlane match appstore</code> to generate and store new certificates and provisioning profiles in the Match repository.</li>
+            <li>Cleans up the temporary keychain and API key file.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h3>3.2. iOS Deployment to TestFlight (<code>ios.yml</code>)</h3>
+      <p>This workflow builds the iOS app and uploads it to TestFlight.</p>
       <ol>
         <li><strong>Trigger:</strong>
           <ul>
-            <li>The <code>ios.yml</code> workflow is triggered automatically on pushes to the <code>main</code> branch if relevant files (<code>.go, .html, .js, .css</code>) change.</li>
-            <li>It can also be manually dispatched with options for versioning and forcing a build.</li>
+            <li>Push to the <code>main</code> branch if <code>.go</code>, <code>.html</code>, <code>.js</code>, or <code>.css</code> files change.</li>
+            <li>Manual trigger via <code>workflow_dispatch</code> with options for version type (patch/minor/major), custom version, and force build.</li>
           </ul>
         </li>
-        <li><strong>Pre-build Checks:</strong>
+        <li><strong>Pre-flight Checks:</strong>
           <ul>
-            <li>A <code>check_changes</code> job determines if the build should proceed based on the trigger type and inputs.</li>
-            <li>A <code>check_match_setup</code> job verifies that the Fastlane Match repository (e.g., <code>bobbyhiddn/fastlane.git</code>, which stores encrypted signing assets) is initialized and accessible.</li>
+            <li><code>check_changes</code>: Determines if a build should proceed based on trigger type and file changes.</li>
+            <li><code>check_match_setup</code>: Verifies that the Fastlane Match repository (<code>secrets.MATCH_GIT_URL</code>) is initialized and accessible. Exits if not.</li>
           </ul>
         </li>
-        <li><strong>Deployment Job (<code>deploy_ios</code>):</strong> This job runs on a <code>macos-15</code> runner if pre-checks pass.
-          <ul>
-            <li><strong>Versioning:</strong> Calculates the next app version (e.g., <code>1.0.1</code>) based on inputs or the current version stored as a GitHub environment variable (<code>CURRENT_VERSION</code> in the 'ios' environment). This variable is then updated via the GitHub API.</li>
-            <li><strong>Web Asset Build:</strong>
+        <li><strong>Deploy iOS Job (<code>deploy_ios</code> on <code>macos-15</code>):</strong>
+          <ol>
+            <li><strong>Checkout & Versioning:</strong>
               <ul>
-                <li>Sets up Node.js and installs dependencies (<code>npm ci</code> in the <code>capacitor/</code> directory).</li>
-                <li>Builds the web assets using <code>npm run build</code> (which typically runs Vite).</li>
-                <li>Syncs these web assets into the native iOS project using <code>npx cap sync ios</code>.</li>
+                <li>Code is checked out.</li>
+                <li>The current version is fetched from a GitHub environment variable (<code>vars.CURRENT_VERSION</code>).</li>
+                <li>The next version is calculated based on the input (patch, minor, major, or custom).</li>
+                <li>The <code>CURRENT_VERSION</code> variable in the 'ios' GitHub environment is updated to this new version via the GitHub API.</li>
               </ul>
             </li>
-            <li><strong>Native iOS Build & Signing (using Fastlane):</strong>
+            <li><strong>Environment Setup:</strong>
               <ul>
-                <li>Sets up Ruby and installs gems (including Fastlane) from <code>capacitor/ios/App/Gemfile</code>.</li>
-                <li>Creates a temporary macOS keychain for code signing.</li>
-                <li>Installs CocoaPods dependencies (<code>pod install</code>).</li>
-                <li>Creates a temporary App Store Connect API key file from GitHub secrets.</li>
-                <li>Executes the <code>bundle exec fastlane closed_beta</code> lane (defined in <code>capacitor/ios/App/fastlane/Fastfile</code>). This lane performs several actions:
+                <li>Ruby (for Fastlane) and Node.js (for Capacitor/frontend build) are set up.</li>
+                <li>Frontend dependencies are installed (<code>npm ci</code> in <code>capacitor/</code>).</li>
+              </ul>
+            </li>
+            <li><strong>Build & Sync Web Assets:</strong>
+              <ul>
+                <li><code>npm run build</code>: The web app (Vite) is built into the <code>capacitor/dist</code> directory.</li>
+                <li><code>npx cap sync ios</code>: Capacitor copies web assets to the native iOS project (<code>capacitor/ios/App/App/public/</code>) and updates native project configurations. The <code>copy-assets.js</code> script also plays a role here, ensuring WASM files are correctly placed for Capacitor.</li>
+              </ul>
+            </li>
+            <li><strong>Native iOS Setup:</strong>
+              <ul>
+                <li>A temporary keychain is created and configured.</li>
+                <li>iOS dependencies (CocoaPods) are installed (<code>pod install</code> in <code>capacitor/ios/App</code>).</li>
+                <li>An App Store Connect API key file (<code>api_key.json</code>) is created in <code>capacitor/ios/App/</code> for Fastlane.</li>
+              </ul>
+            </li>
+            <li><strong>Fastlane Execution (<code>bundle exec fastlane closed_beta</code>):</strong>
+              <ul>
+                <li>This command is run from <code>capacitor/ios/App</code>.</li>
+                <li><strong><code>Appfile</code>:</strong> Configures <code>app_identifier</code>, <code>apple_id</code>, and <code>team_id</code> from environment variables.</li>
+                <li><strong><code>Matchfile</code>:</strong> Configures Match to use the Git URL for certificates and specifies the <code>appstore</code> type.</li>
+                <li><strong><code>Fastfile</code> (<code>closed_beta</code> lane):</strong>
                   <ul>
-                    <li>Configures App Store Connect API access.</li>
-                    <li>Sets the app's marketing version and increments the build number in the Xcode project.</li>
-                    <li>Uses Fastlane Match (<code>sync_code_signing</code>) to download and install the correct App Store distribution certificates and provisioning profiles from the secure Match Git repository.</li>
-                    <li>Updates the Xcode project's code signing settings to use manual signing with the fetched profiles.</li>
-                    <li>Builds the iOS app (<code>.ipa</code> file) configured for App Store distribution.</li>
-                    <li>Uploads the <code>.ipa</code> to TestFlight and waits for Apple's processing to complete.</li>
+                    <li>Authenticates with App Store Connect using the API key.</li>
+                    <li><code>increment_version_number</code>: Sets the app's marketing version in the Xcode project to <code>ENV['CUSTOM_VERSION']</code> (which is the calculated next version).</li>
+                    <li><code>latest_testflight_build_number</code>: Fetches the current highest build number from TestFlight.</li>
+                    <li><code>increment_build_number</code>: Sets the Xcode project's build number to (latest TestFlight build number + 1).</li>
+                    <li><code>sync_code_signing</code> (match): Downloads certificates and provisioning profiles from the Match Git repository into the temporary keychain (<code>readonly: true</code>).</li>
+                    <li><code>update_code_signing_settings</code>: Configures the Xcode project to use manual signing with the downloaded profile.</li>
+                    <li><code>build_ios_app</code>: Compiles and archives the iOS application (<code>.ipa</code> file).</li>
+                    <li><code>upload_to_testflight</code>: Uploads the <code>.ipa</code> to App Store Connect for TestFlight distribution and waits for processing.</li>
                   </ul>
                 </li>
               </ul>
             </li>
-            <li><strong>Cleanup:</strong> Deletes the temporary keychain and the App Store Connect API key file.</li>
-          </ul>
+            <li><strong>Cleanup:</strong> The temporary keychain and API key file are deleted.</li>
+          </ol>
         </li>
       </ol>
-      <p>This diagram shows the iOS deployment pipeline:</p>
+      <p>This diagram illustrates the automated process of building the repo.md iOS application and deploying it to TestFlight using GitHub Actions:</p>
       <div class="mermaid">
-        graph TD
-            subgraph Trigger
-                A[Push to 'main' (specific paths)]
-                B[Manual (workflow_dispatch) with inputs: version_type, custom_version, force_build]
-            end
+        flowchart TB
+          subgraph "📱 iOS App"
+            A["Web App"] --> B["Capacitor Wrapper"]
+            B --> C["Native iOS App"]
+            C --> D["TestFlight"]
+          end
 
-            subgraph Workflow_ios.yml
-                C{Job: check_changes} --> D{Output: should_build};
-                D -- If true --> E{Job: check_match_setup};
-                E -- Checks bobbyhiddn/fastlane.git --> F{Output: is_initialized};
-                F -- If true --> G{Job: deploy_ios};
-
-                subgraph deploy_ios_Job
-                    H[Checkout Code] --> I[Get CURRENT_VERSION (GitHub env var)];
-                    I --> J[Calculate NEXT_VERSION];
-                    J --> K[Update CURRENT_VERSION (GitHub API)];
-                    K --> L[Setup Ruby & Bundler];
-                    L --> M[Setup Node.js & npm ci];
-                    M --> N[Build Web Assets (npm run build, npx cap sync ios)];
-                    N --> O[Setup Temporary Keychain];
-                    O --> P[Install iOS Dependencies (pod install)];
-                    P --> Q[Create App Store Connect API Key JSON];
-                    Q --> R[Run `bundle exec fastlane closed_beta`];
-                    R -- Uses Fastfile, Appfile, Matchfile --> S[Build .ipa & Upload to TestFlight];
-                    S --> T[Cleanup];
-                end
-            end
-
-            A --> C;
-            B --> C;
-
-            style A fill:#aaffaa,stroke:#333,stroke-width:2px
-            style B fill:#aaffaa,stroke:#333,stroke-width:2px
-            style C fill:#ffccaa,stroke:#333,stroke-width:2px
-            style E fill:#ffccaa,stroke:#333,stroke-width:2px
-            style G fill:#ffccaa,stroke:#333,stroke-width:2px
-            style R fill:#cceeff,stroke:#333,stroke-width:2px
+          style A fill:#34c75920,stroke:#34c759
+          style B fill:#34c75920,stroke:#34c759
+          style C fill:#34c75920,stroke:#34c759
+          style D fill:#34c75940,stroke:#34c759
       </div>
     </div>
 
@@ -235,20 +233,9 @@
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       mermaid.initialize({
-        startOnLoad: false, // We will call run manually
-        theme: 'base', // Or 'default', 'forest', 'dark', 'neutral'
-        themeVariables: {
-          // Example: Customize colors if needed, though default should be fine
-          // primaryColor: '#ff9900',
-          // primaryTextColor: '#fff',
-          // lineSpacing: '2px' // Example of a possible variable for spacing, check Mermaid docs
-        }
+        startOnLoad: false // We will call run manually
       });
-      // Ensure all diagrams are rendered.
-      // If they are complex, might need a slight delay or ensure DOM is fully ready.
-      setTimeout(() => {
-        mermaid.run();
-      }, 100); // Small delay just in case, usually not needed if startOnLoad:false
+      mermaid.run();
     });
   </script>
 </body>
