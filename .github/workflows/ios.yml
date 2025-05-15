@@ -174,15 +174,14 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: './capacitor/package-lock.json'
+          cache-dependency-path: 'capacitor/package-lock.json'
 
       - name: Check Go version
         run: go version
 
       - name: Install dependencies
-        run: |
-          cd capacitor
-          npm ci
+        working-directory: capacitor
+        run: npm ci
 
       - name: Build WASM
         run: |
@@ -190,8 +189,8 @@ jobs:
           bash build.sh
 
       - name: Build and copy assets
+        working-directory: capacitor
         run: |
-          cd capacitor
           npm run build
           node scripts/copy-assets.js ios
           npx cap sync ios
