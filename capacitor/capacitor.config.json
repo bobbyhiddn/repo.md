@@ -2,7 +2,6 @@
   "appId": "io.goaf.app",
   "appName": "GoAF App",
   "webDir": "dist",
-  "bundledWebRuntime": false,
   "server": {
     "iosScheme": "file",
     "androidScheme": "file",
