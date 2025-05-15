@@ -24,7 +24,7 @@
 		}
 	},
 	"ios": {
-		"orientation": "landscape"
+		"orientation": "portrait"
 	},
 	"packageClassList": [
 		"SplashScreenPlugin"

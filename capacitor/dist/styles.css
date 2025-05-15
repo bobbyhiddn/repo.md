@@ -1,0 +1,442 @@
+:root {
+  --gh-bg-primary: #ffffff;
+  --gh-bg-secondary: #f6f8fa;
+  --gh-bg-tertiary: #f0f2f5; /* Page background */
+  --gh-text-primary: #24292e;
+  --gh-text-secondary: #586069;
+  --gh-border-primary: #d1d5da;
+  --gh-border-secondary: #e1e4e8;
+  --gh-header-bg: #24292e;
+  --gh-header-text: #ffffff;
+  --gh-button-green-bg: #2ea44f;
+  --gh-button-green-hover-bg: #2c974b;
+  --gh-button-blue-bg: #0366d6;
+  --gh-button-blue-hover-bg: #005cc5;
+  --gh-button-purple-bg: #6f42c1;
+  --gh-button-purple-hover-bg: #5832a0;
+  --gh-button-disabled-bg: #94d3a2;
+  --gh-error-text: #cb2431;
+  --gh-error-bg: #fcebea;
+  --gh-error-border: #ffccd0;
+  --gh-focus-ring: rgba(3, 102, 214, 0.3);
+  --gh-font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --gh-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  --gh-border-radius: 8px; /* Slightly increased border radius for a softer look */
+  --gh-shadow-small: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.12);
+  --gh-shadow-medium: 0 4px 8px rgba(0,0,0,0.08), 0 3px 6px rgba(0,0,0,0.10); /* Slightly enhanced shadow */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gh-bg-primary: #1c2128; /* Darker card background */
+    --gh-bg-secondary: #161b22; /* Darker code background */
+    --gh-bg-tertiary: #0d1117; /* Dark page background */
+    --gh-text-primary: #e6edf3; /* Lighter text */
+    --gh-text-secondary: #909dab; /* Muted lighter text */
+    --gh-border-primary: #30363d;
+    --gh-border-secondary: #21262d;
+    --gh-button-green-bg: #238636;
+    --gh-button-green-hover-bg: #2ea043;
+    --gh-button-disabled-bg: #1c5324;
+    --gh-error-text: #f85149;
+    --gh-error-bg: #481317;
+    --gh-error-border: #6b2026;
+    --gh-focus-ring: rgba(29, 155, 240, 0.4); /* Slightly more visible focus ring */
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--gh-font-system);
+  font-size: 16px; /* Increased base font size */
+  margin: 0;
+  background: var(--gh-bg-tertiary);
+  color: var(--gh-text-primary);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  line-height: 1.6; /* Increased line height for readability */
+}
+
+.header {
+  background: var(--gh-header-bg);
+  color: var(--gh-header-text);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2.2rem; /* Slightly larger */
+  font-weight: 600; /* Bolder */
+}
+
+/* Main Navigation */
+.main-nav {
+  margin-top: 1rem;
+  padding-bottom: 0.5rem; /* Give some space if header has bottom border */
+}
+
+.main-nav a {
+  color: var(--link-color);
+  text-decoration: none;
+  margin: 0 0.75rem;
+  padding: 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: color 0.3s ease, border-bottom-color 0.3s ease;
+}
+
+.main-nav a:hover,
+.main-nav a:focus {
+  color: var(--link-hover-color);
+  border-bottom-color: var(--link-hover-color);
+}
+
+/* Active link styling - can be added via JS or server-side logic if needed */
+/* .main-nav a.active {
+  color: var(--link-hover-color);
+  border-bottom-color: var(--link-hover-color);
+  font-weight: 700;
+} */
+
+.hero {
+  background: var(--gh-bg-primary);
+  padding: 4rem 1.5rem;
+  text-align: center;
+  border-bottom: 1px solid var(--gh-border-primary);
+}
+
+#hero-logo {
+  height: 320px;
+  margin-bottom: 3rem;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.taglines {
+  margin-bottom: 2.5rem;
+}
+
+.taglines h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  color: var(--gh-text-primary);
+}
+
+.taglines p {
+  font-size: 1.25rem;
+  color: var(--gh-text-secondary);
+  margin: 0;
+  line-height: 1.7;
+}
+
+.taglines br {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.hero #repoForm {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.hero #github_url {
+  font-size: 1.25rem;
+  padding: 1rem 1.5rem;
+}
+
+.hero #submitBtn {
+  font-size: 1.25rem;
+  padding: 1rem 2rem;
+}
+
+.container {
+  max-width: 900px;
+  width: 90%;
+  background: var(--gh-bg-primary);
+  margin: 2.5rem auto; /* Increased margin */
+  padding: 2.5rem 3rem; /* Increased padding */
+  border-radius: var(--gh-border-radius);
+  box-shadow: var(--gh-shadow-medium);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+input[type="url"] {
+  font-size: 1.2rem; /* Further increased font size */
+  padding: 1rem 1.2rem; /* Further increased padding */
+  width: 100%;
+  margin-bottom: 1.5rem; /* Increased margin for more space */
+  border: 1px solid var(--gh-border-primary);
+  border-radius: var(--gh-border-radius);
+  background-color: var(--gh-bg-primary);
+  color: var(--gh-text-primary);
+  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+input[type="url"]::placeholder {
+    color: var(--gh-text-secondary);
+    opacity: 0.7;
+}
+input[type="url"]:focus {
+  border-color: var(--gh-button-blue-bg);
+  box-shadow: 0 0 0 4px var(--gh-focus-ring); /* Enhanced focus ring */
+  outline: none;
+}
+
+button {
+  font-size: 1.1rem; /* Increased font size for all buttons */
+  font-weight: 600;
+  color: white;
+  padding: 0.9rem 1.8rem; /* Adjusted padding for all buttons */
+  border: 1px solid transparent;
+  border-radius: var(--gh-border-radius);
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#submitBtn {
+  font-size: 1.15rem; /* Specific larger size for submit button */
+  padding: 1rem 2rem; /* Specific larger padding for submit button */
+  background: var(--gh-button-green-bg);
+  border-color: rgba(27,31,35,0.15);
+}
+#submitBtn:hover {
+  background: var(--gh-button-green-hover-bg);
+}
+#submitBtn:disabled {
+  background: var(--gh-button-disabled-bg);
+  color: rgba(255,255,255,0.7);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.loading {
+  font-style: italic;
+  margin: 1.75rem 0; /* Increased margin */
+  text-align: center;
+  color: var(--gh-text-secondary);
+  font-size: 1.1em; /* Increased font size */
+}
+.loading::before {
+    content: "";
+    display: inline-block;
+    width: 1.2em; /* Larger spinner */
+    height: 1.2em;
+    margin-right: 0.6em;
+    border: 3px solid currentColor; /* Thicker border */
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner 0.75s linear infinite;
+    vertical-align: text-bottom;
+}
+@keyframes spinner {
+    to { transform: rotate(360deg); }
+}
+
+.error {
+  color: var(--gh-error-text);
+  background: var(--gh-error-bg);
+  padding: 1.25rem; /* Increased padding */
+  border-radius: var(--gh-border-radius);
+  margin: 1.75rem 0;
+  border: 1px solid var(--gh-error-border);
+  font-size: 1.05em;
+}
+
+#resultContainer {
+  margin-top: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.controls {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.85rem;
+  justify-content: flex-end;
+}
+.controls button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95em;
+}
+
+#copyBtn {
+  background-color: var(--gh-button-purple-bg);
+  border-color: rgba(27,31,35,0.15);
+}
+#copyBtn:hover {
+  background-color: var(--gh-button-purple-hover-bg);
+}
+
+#downloadBtn {
+  background-color: var(--gh-button-blue-bg);
+  border-color: rgba(27,31,35,0.15);
+}
+#downloadBtn:hover {
+  background-color: var(--gh-button-blue-hover-bg);
+}
+
+#result {
+  background: var(--gh-bg-secondary);
+  color: var(--gh-text-primary);
+  padding: 1.25rem 1.5rem; /* Increased padding */
+  border: 1px solid var(--gh-border-primary);
+  border-radius: var(--gh-border-radius);
+  font-family: var(--gh-font-mono);
+  font-size: 0.95em; /* Increased font size for code */
+  line-height: 1.7; /* Increased line height for code */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  flex-grow: 1;
+  min-height: 350px; /* Increased min-height */
+}
+#result h1, #result h2, #result h3, #result h4, #result h5, #result h6 {
+    color: var(--gh-text-primary);
+    border-bottom: 1px solid var(--gh-border-secondary);
+    padding-bottom: 0.4em;
+    margin-top: 1.75em;
+    margin-bottom: 1.2em;
+    font-weight: 600;
+}
+#result h1 { font-size: 2em; }
+#result h2 { font-size: 1.7em; }
+#result h3 { font-size: 1.4em; }
+
+#result code {
+    background-color: rgba(175,184,193,0.2);
+    padding: .2em .4em;
+    margin: 0;
+    font-size: 90%; /* Adjusted for new base */
+    border-radius: calc(var(--gh-border-radius) - 2px); /* Slightly smaller radius for inline code */
+}
+#result pre > code {
+    background-color: transparent;
+    padding: 0;
+    margin: 0;
+    font-size: 100%;
+    border-radius: 0;
+}
+#resultContainer {
+  margin-top: 2rem;
+}
+
+.result-actions {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--gh-border-radius);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+#copyBtn {
+  background-color: #8957e5;
+  color: white;
+}
+
+#copyBtn:hover {
+  background-color: #7548c7;
+}
+
+#downloadBtn {
+  background-color: #0969da;
+  color: white;
+}
+
+#downloadBtn:hover {
+  background-color: #0860c9;
+}
+
+#result {
+  max-height: 500px;
+  overflow-y: auto;
+  border-radius: var(--gh-border-radius);
+  background-color: var(--gh-bg-secondary);
+}
+
+.result pre {
+  padding: 1.5rem;
+  margin: 0;
+  overflow-x: auto;
+  font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+  line-height: 1.6;
+  background-color: transparent;
+}
+
+.result pre code {
+  color: var(--gh-text-primary);
+  white-space: pre-wrap;
+}
+
+#welcome {
+  opacity: 0.8;
+}
+
+.welcome-preview pre {
+  background-color: var(--gh-code-bg);
+  border-radius: 6px;
+  padding: 1.5rem;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.welcome-preview pre code {
+  color: var(--gh-text-primary);
+  font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+.welcome-preview pre code h1,
+.welcome-preview pre code h2 {
+  color: var(--gh-text-primary);
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.welcome-preview pre code h2 {
+  margin-top: 2rem;
+}
+
+.welcome-preview pre code .python {
+  color: var(--gh-text-secondary);
+}
+
+.footer {
+  text-align: center;
+  padding: 1.75rem;
+  color: var(--gh-text-secondary);
+  font-size: 0.95em;
+  margin-top: auto;
+  border-top: 1px solid var(--gh-border-secondary);
+}
+.footer p {
+    margin: 0;
+}
+.footer a {
+    color: var(--gh-button-blue-bg);
+    text-decoration: none;
+    font-weight: 500;
+}
+.footer a:hover {
+    text-decoration: underline;
+}

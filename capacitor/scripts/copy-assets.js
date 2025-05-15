@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 function copyAssets(platform) {
   // Source and destination directories
-  const srcDir = path.join(__dirname, '../src/assets');
+  const srcDir = path.join(__dirname, '../src/public/assets'); // Vite will copy from src/public/assets to dist/assets
   const distDir = path.join(__dirname, '../dist/assets');
   
   // Platform-specific directories
@@ -16,15 +16,19 @@ function copyAssets(platform) {
     android: path.join(__dirname, '../android/app/src/main/assets/public/assets')
   };
 
-  // Ensure directories exist
-  fs.ensureDirSync(distDir);
-  
+  // Ensure platform-specific directories exist if a platform is specified
   if (platform && platformDirs[platform]) {
     fs.ensureDirSync(platformDirs[platform]);
+  } else if (platform) {
+    console.warn(`Warning: Platform ${platform} specified but no directory mapping found.`);
+    return; // Don't proceed if platform is specified but unknown
   }
 
+  // If no platform is specified, this script will now do nothing further,
+  // as Vite handles copying from src/public/assets to dist/assets.
+
   // Files to copy - main.wasm is our compiled Go code
-  const filesToCopy = ['main.wasm', 'wasm_exec.js'];
+  const filesToCopy = []; // WASM not used, so no files to copy via this script.
   
   // Copy to dist
   filesToCopy.forEach(file => {
@@ -33,13 +37,6 @@ function copyAssets(platform) {
       console.warn(`Warning: ${file} not found in src/assets`);
       return;
     }
-
-    fs.copySync(
-      srcFile,
-      path.join(distDir, file),
-      { overwrite: true }
-    );
-    console.log(`Copied ${file} to dist/assets`);
 
     // Copy to platform-specific directory if specified
     if (platform && platformDirs[platform]) {
@@ -56,15 +53,17 @@ function copyAssets(platform) {
 try {
   // Get platform from command line argument
   const platform = process.argv[2];
-  if (!platform) {
-    console.log('No platform specified, copying to dist only');
-  } else if (!['ios', 'android'].includes(platform)) {
+  if (platform && !['ios', 'android'].includes(platform)) {
     console.error('Invalid platform. Use "ios" or "android"');
     process.exit(1);
   }
   
-  copyAssets(platform);
-  console.log('Assets copied successfully');
+  if (platform) {
+    copyAssets(platform);
+    console.log(`Assets copied successfully for ${platform}`);
+  } else {
+    console.log('No platform specified. Vite will handle copying assets to dist. This script will not copy to platform-specific directories.');
+  }
 } catch (err) {
   console.error('Error copying assets:', err);
   process.exit(1);
