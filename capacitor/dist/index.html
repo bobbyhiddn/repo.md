@@ -91,53 +91,56 @@ Paste a GitHub repository URL above to get started!</code></pre>
     <p>Powered by Python &amp; Flask. Inspired by GitHub.</p>
   </footer>
 
+<script src="assets/wasm_exec.js"></script>
 <script>
-    document.getElementById('repoForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const github_url = document.getElementById('github_url').value;
-      document.getElementById('loading').style.display = 'block';
-      document.getElementById('welcome').style.display = 'none';
-      document.getElementById('result').style.display = 'none';
-      document.getElementById('error').style.display = 'none';
-      document.querySelector('.result-actions').style.display = 'none';
+    // Initialize WASM
+    const go = new Go();
+    let wasmInstance = null;
 
-      try {
-        const response = await fetch('https://repo-md.com/generate_markdown', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ github_url })
-        });
+    WebAssembly.instantiateStreaming(fetch('assets/main.wasm'), go.importObject).then((result) => {
+      wasmInstance = result.instance;
+      go.run(wasmInstance);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+      // Handle form submission
+      document.getElementById('repoForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          const url = document.getElementById('github_url').value;
+          document.getElementById('loading').style.display = 'block';
+          document.getElementById('welcome').style.display = 'none';
+          document.getElementById('result').style.display = 'none';
+          document.getElementById('error').style.display = 'none';
+          document.querySelector('.result-actions').style.display = 'none';
 
-        const jsonData = await response.json(); // Parse the JSON response
-        const markdownContent = jsonData.markdown; // Extract the markdown string
-        document.getElementById('markdown').textContent = markdownContent; // Set the extracted markdown
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('welcome').style.display = 'none'; // Ensure welcome is hidden
-        document.getElementById('result').style.display = 'block';
-        document.querySelector('.result-actions').style.display = 'block';
-      } catch (error) {
-        console.error('Error:', error);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('welcome').style.display = 'block';
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('error').textContent = 'An error occurred while generating the markdown. Please check the URL and try again.';
-      }
+          // Call WASM with callback
+          window.generateMarkdown(url, function(result) {
+              try {
+                  const data = JSON.parse(result);
+                  document.getElementById('markdown').textContent = data.markdown;
+                  document.getElementById('loading').style.display = 'none';
+                  document.getElementById('welcome').style.display = 'none';
+                  document.getElementById('result').style.display = 'block';
+                  document.querySelector('.result-actions').style.display = 'block';
+              } catch (error) {
+                  console.error('Error:', error);
+                  document.getElementById('loading').style.display = 'none';
+                  document.getElementById('welcome').style.display = 'block';
+                  document.getElementById('error').style.display = 'block';
+                  document.getElementById('error').textContent = 'An error occurred while generating the markdown. Please check the URL and try again.';
+              }
+          });
+      });
     });
 
-    document.getElementById('copyBtn').addEventListener('click', function() {
+    function copyToClipboard() {
       const markdown = document.getElementById('markdown').textContent;
       navigator.clipboard.writeText(markdown).then(function() {
         alert('Copied to clipboard!');
       }).catch(function(err) {
         console.error('Could not copy text: ', err);
       });
-    });
+    }
+
+    document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
 
     document.getElementById('downloadBtn').addEventListener('click', function() {
       const markdown = document.getElementById('markdown').textContent;

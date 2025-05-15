@@ -27,8 +27,8 @@ function copyAssets(platform) {
   // If no platform is specified, this script will now do nothing further,
   // as Vite handles copying from src/public/assets to dist/assets.
 
-  // Files to copy - main.wasm is our compiled Go code
-  const filesToCopy = []; // WASM not used, so no files to copy via this script.
+  // Files to copy - WASM files
+  const filesToCopy = ['main.wasm', 'wasm_exec.js'];
   
   // Copy to dist
   filesToCopy.forEach(file => {
