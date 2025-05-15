@@ -70,9 +70,39 @@ body {
 
 .header h1 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 2.2rem; /* Slightly larger */
+  font-weight: 600; /* Bolder */
 }
+
+/* Main Navigation */
+.main-nav {
+  margin-top: 1rem;
+  padding-bottom: 0.5rem; /* Give some space if header has bottom border */
+}
+
+.main-nav a {
+  color: var(--link-color);
+  text-decoration: none;
+  margin: 0 0.75rem;
+  padding: 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: color 0.3s ease, border-bottom-color 0.3s ease;
+}
+
+.main-nav a:hover,
+.main-nav a:focus {
+  color: var(--link-hover-color);
+  border-bottom-color: var(--link-hover-color);
+}
+
+/* Active link styling - can be added via JS or server-side logic if needed */
+/* .main-nav a.active {
+  color: var(--link-hover-color);
+  border-bottom-color: var(--link-hover-color);
+  font-weight: 700;
+} */
 
 .hero {
   background: var(--gh-bg-primary);
