@@ -89,7 +89,7 @@ jobs:
     needs: [check_changes, check_match_setup]
     if: needs.check_changes.outputs.should_build == 'true' && needs.check_match_setup.outputs.is_initialized == 'true'
     name: Deploy beta build to TestFlight
-    runs-on: macos-latest
+    runs-on: macos-14
     environment: ios
     steps:
       - name: Checkout code

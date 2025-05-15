@@ -48,7 +48,8 @@ def generate_markdown_route():
             _initial_call=True,
             _gitignore_patterns_cache=None
         )
-        return jsonify({"markdown": markdown, "repo_name": repo_name})
+        watermarked_content = f"{markdown}\n\n<!-- Generated with repo.md (https://repo-md.com) -->"
+        return jsonify({"markdown": watermarked_content, "repo_name": repo_name})
     except subprocess.TimeoutExpired:
         logging.error(f"Clone timed out for {github_url}")
         return jsonify({"error": "Cloning timed out."}), 500
