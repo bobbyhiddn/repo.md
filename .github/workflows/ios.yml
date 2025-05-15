@@ -64,8 +64,8 @@ jobs:
       - name: Check if match repository is initialized
         id: check
         env:
-          MATCH_GIT_URL: "${{ secrets.MATCH_GIT_URL }}"
-          GIT_AUTHORIZATION: "${{ secrets.GIT_AUTHORIZATION }}"
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          GIT_AUTHORIZATION: ${{ secrets.GIT_AUTHORIZATION }}
         run: |
           # Extract repo owner and name from the URL
           REPO_PATH=$(echo $MATCH_GIT_URL | sed -n 's/.*github.com[:\/]\([^\/]*\/[^\/]*\).*/\1/p' | sed 's/\.git$//')
@@ -89,7 +89,7 @@ jobs:
     needs: [check_changes, check_match_setup]
     if: needs.check_changes.outputs.should_build == 'true' && needs.check_match_setup.outputs.is_initialized == 'true'
     name: Deploy beta build to TestFlight
-    runs-on: macos-latest
+    runs-on: macos-15
     environment: ios
     steps:
       - name: Checkout code
@@ -102,7 +102,7 @@ jobs:
           echo "CURRENT_VERSION=${CURRENT_VERSION:-1.0.0}" >> $GITHUB_OUTPUT
           echo $CURRENT_VERSION
         env:
-          CURRENT_VERSION: "${{ vars.CURRENT_VERSION }}"
+          CURRENT_VERSION: ${{ vars.CURRENT_VERSION }}
 
       - name: Calculate next version
         id: next_version
@@ -225,17 +225,17 @@ jobs:
 
       - name: Deploy iOS Beta to TestFlight via Fastlane
         env:
-          APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
-          DEVELOPER_APP_ID: ${{ secrets.DEVELOPER_APP_ID }}
-          DEVELOPER_APP_IDENTIFIER: ${{ secrets.DEVELOPER_APP_IDENTIFIER }}
-          DEVELOPER_PORTAL_TEAM_ID: ${{ secrets.DEVELOPER_PORTAL_TEAM_ID }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          GIT_AUTHORIZATION: ${{ secrets.GIT_AUTHORIZATION }}
-          TEMP_KEYCHAIN_PASSWORD: ${{ secrets.TEMP_KEYCHAIN_PASSWORD }}
-          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
-          APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
-          APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+          APP_STORE_CONNECT_TEAM_ID: "${{ secrets.APP_STORE_CONNECT_TEAM_ID }}"
+          DEVELOPER_APP_ID: "${{ secrets.DEVELOPER_APP_ID }}"
+          DEVELOPER_APP_IDENTIFIER: "${{ secrets.DEVELOPER_APP_IDENTIFIER }}"
+          DEVELOPER_PORTAL_TEAM_ID: "${{ secrets.DEVELOPER_PORTAL_TEAM_ID }}"
+          MATCH_PASSWORD: "${{ secrets.MATCH_PASSWORD }}"
+          MATCH_GIT_URL: "${{ secrets.MATCH_GIT_URL }}"
+          GIT_AUTHORIZATION: "${{ secrets.GIT_AUTHORIZATION }}"
+          TEMP_KEYCHAIN_PASSWORD: "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}"
+          APPLE_KEY_ID: "${{ secrets.APPLE_KEY_ID }}"
+          APPLE_ISSUER_ID: "${{ secrets.APPLE_ISSUER_ID }}"
+          APPLE_KEY_CONTENT: "${{ secrets.APPLE_KEY_CONTENT }}"
           VERSION_TYPE: ${{ github.event.inputs.version_type }}
           CUSTOM_VERSION: ${{ steps.next_version.outputs.NEXT_VERSION }}
         run: |

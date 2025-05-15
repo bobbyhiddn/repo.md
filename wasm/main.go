@@ -101,7 +101,7 @@ func generateMarkdown(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
-// processDirectoryContents recursively fetches and processes items in a directory.
+// processDirectoryContents recursively fetches and processes items in a directory
 func processDirectoryContents(directoryAPIURL string, markdown *strings.Builder, depth int, callback js.Value, maxRecursionDepth int) error {
 	js.Global().Get("console").Call("log", fmt.Sprintf("Enter processDirectoryContents: depth %d, URL: %s", depth, directoryAPIURL))
 	if depth > maxRecursionDepth {
