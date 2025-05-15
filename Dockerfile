@@ -1,3 +1,17 @@
+FROM golang:1.21 AS wasm-builder
+
+WORKDIR /go/src/repo.md
+
+# Copy Go files
+COPY wasm/ ./wasm/
+
+# Build WASM module
+RUN cd wasm && GOARCH=wasm GOOS=js go build -o main.wasm
+
+# Copy wasm_exec.js
+RUN cp /usr/local/go/misc/wasm/wasm_exec.js ./wasm/
+
+# Final stage with Python
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -14,6 +28,10 @@ COPY app.py scribe_core.py ./
 
 # Copy the frontend assets
 COPY capacitor/src ./capacitor/src/
+
+# Copy WASM files
+COPY --from=wasm-builder /go/src/repo.md/wasm/main.wasm ./capacitor/src/assets/
+COPY --from=wasm-builder /go/src/repo.md/wasm/wasm_exec.js ./capacitor/src/assets/
 
 EXPOSE 8080
 
