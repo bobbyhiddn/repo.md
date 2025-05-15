@@ -51,13 +51,13 @@
       <p>The following diagram shows the runtime process of how a GitHub repository URL is processed by the deployed repo.md web app to generate Markdown content:</p>
       <div class="mermaid">
         flowchart TB
-          subgraph "📱 Web App (Runtime)"
-            A["App UI (User Input)"] --> B["URLInput Component"]
-            A --> C["MarkdownViewer Component"]
-            B --> D["APIService (Frontend)"]
-            D -- "/generate_markdown request" --> E["Flask Backend (app.py on Fly.io)"]
-            E -- "Clones Target Repo & Uses scribe_core.py" --> F["Generated Markdown"]
-            F -- "JSON Response" --> D
+          subgraph "Web App (Runtime)"
+            A["User opens repo.md website"] --> B["Enters GitHub URL"]
+            A --> C["Views generated Markdown"]
+            B --> D["Website logic (Frontend)"]
+            D -- "Sends URL to server for processing" --> E["Server-side code (app.py on Fly.io)"]
+            E -- "Server clones repo & creates Markdown" --> F["Markdown content ready"]
+            F -- "Sends Markdown back to website" --> D
             D --> C
           end
 
@@ -94,10 +94,10 @@
       <p>This GitOps deployment pipeline is visualized below:</p>
       <div class="mermaid">
         flowchart TB
-          subgraph "🚀 Web App GitOps Deployment"
-            A["Git Push (main branch)"] -->|Triggers| B["GitHub Action (`fly-deploy.yml`)"];
-            B -->|Executes `flyctl deploy`| C["Fly.io Platform"]
-            C -->|Builds Docker Image (from Dockerfile)<br>Deploys to VMs (from fly.toml)| D["Live Website (repo-md.com)"]
+          subgraph "Web App GitOps Deployment"
+            A["Developer pushes code changes to Git"] -->|Triggers| B["Automated deployment script starts (fly-deploy.yml)"];
+            B -- "Script instructs cloud platform to deploy" --> C["Cloud platform (Fly.io) processes request"]
+            C -- "Platform builds app container (Docker image)\n& deploys it to live servers" --> D["Updated website is live (repo-md.com)"]
           end
 
           style A fill:#0366d620,stroke:#0366d6
@@ -147,10 +147,10 @@
       <p>This automated iOS build and deployment pipeline is shown below:</p>
       <div class="mermaid">
         flowchart TB
-          subgraph "📱 iOS App GitOps Build & Deployment"
-            A["Git Push (main, relevant web app paths)<br>OR Manual Dispatch"] -->|Triggers| B["GitHub Action (`ios.yml`)"];
-            B -->|1. Builds Web App<br>2. Capacitor Sync<br>3. Runs Fastlane| C["Native iOS App Package (.ipa)"];
-            C -->|Fastlane uploads using Match for signing| D["TestFlight / App Store Connect"];
+          subgraph "iOS App GitOps Build & Deployment"
+            A["Developer pushes code or starts iOS build manually"] -->|Triggers| B["Automated iOS build script begins (ios.yml)"];
+            B -- "Script builds web parts,\nupdates iOS project,\n& runs Fastlane (app automation)" --> C["iOS App file created (.ipa)"];
+            C -- "Fastlane securely signs & uploads app package" --> D["App available to testers on TestFlight / App Store"];
           end
 
           style A fill:#0366d620,stroke:#0366d6
