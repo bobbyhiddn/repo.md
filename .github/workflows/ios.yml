@@ -174,8 +174,7 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: 'capacitor/package-lock.json'
-          cache-key: ${{ runner.os }}-node-${{ hashFiles('capacitor/package-lock.json') }}
+          cache-dependency-path: './capacitor/package-lock.json'
 
       - name: Check Go version
         run: go version
