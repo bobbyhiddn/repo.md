@@ -169,11 +169,16 @@ jobs:
           bundler-cache: true
           working-directory: 'capacitor/ios/App'
 
+      - name: Generate package-lock.json
+        working-directory: ./capacitor
+        run: npm install --package-lock-only
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: './capacitor/package-lock.json'
 
       - name: Install dependencies
         run: |
