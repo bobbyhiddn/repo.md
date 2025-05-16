@@ -26,12 +26,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the Flask application
 COPY app.py scribe_core.py ./
 
-# Copy the frontend assets
-COPY capacitor/src ./capacitor/src/
+# Create static directory structure
+RUN mkdir -p static
+
+# Copy frontend files directly from capacitor/src
+COPY capacitor/src/ static/
 
 # Copy WASM files
-COPY --from=wasm-builder /go/src/repo.md/wasm/main.wasm ./capacitor/src/assets/
-COPY --from=wasm-builder /go/src/repo.md/wasm/wasm_exec.js ./capacitor/src/assets/
+COPY --from=wasm-builder /go/src/repo.md/wasm/main.wasm static/assets/
+COPY --from=wasm-builder /go/src/repo.md/wasm/wasm_exec.js static/assets/
 
 EXPOSE 8080
 

@@ -9,7 +9,7 @@ from scribe_core import read_directory_to_markdown
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-app = Flask(__name__, static_folder='capacitor/src', static_url_path='')
+app = Flask(__name__, static_folder='static', static_url_path='')
 
 @app.route('/')
 def index():
