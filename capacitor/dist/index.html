@@ -22,8 +22,63 @@
     }
   }
   </script>
-  <link rel="icon" type="image/png" href="/assets/repo-md-CtUcul4-.png">
-  <link rel="stylesheet" crossorigin href="/assets/index-C7M9UPcK.css">
+  <link rel="icon" type="image/png" href="assets/imgs/repo-md.png">
+  <link rel="stylesheet" href="styles.css">
+<style>
+  /* Loading spinner */
+  .spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 20px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1.5s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading {
+    text-align: center;
+    padding: 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 1rem 0;
+    transition: all 0.3s ease;
+  }
+
+  .loading-text {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: #333;
+  }
+
+  .progress-container {
+    width: 100%;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    margin: 1rem 0;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #3498db;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+
+  .status-message {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-style: italic;
+  }
+</style>
 </head>
 <body>
   <header class="header">
@@ -35,7 +90,7 @@
   </header>
 
   <div class="hero">
-    <img src="/assets/repo-md-CtUcul4-.png" alt="repo.md logo" id="hero-logo">
+    <img src="assets/imgs/repo-md.png" alt="repo.md logo" id="hero-logo">
     <div class="taglines">
       <h1>Generate Markdown from GitHub Repos Instantly</h1>
       <p>Repo.md converts GitHub repositories into AI-friendly markdown, perfect for any LLM, so you can copy and conversate on the go!</p>
@@ -48,7 +103,12 @@
 
   <div class="container">
     <div id="loading" class="loading" style="display:none;">
-      Scribing repository... please wait. This may take a few moments.
+      <div class="spinner"></div>
+      <div class="loading-text">Initializing repository scan...</div>
+      <div class="progress-container">
+        <div class="progress-bar"></div>
+      </div>
+      <div class="status-message">This may take a moment for larger repositories</div>
     </div>
 
     <div id="error" class="error" style="display:none;">
@@ -101,31 +161,147 @@ Paste a GitHub repository URL above to get started!</code></pre>
       wasmInstance = result.instance;
       go.run(wasmInstance);
 
+      // Fun loading messages with tech jargon
+      const loadingMessages = [
+        'Initializing quantum repository scanner...',
+        'Calibrating neural networks...',
+        'Brewing coffee for the dev team...',
+        'Herding code cats...',
+        'Compiling markdown particles...',
+        'Initializing the flux capacitor...',
+        'Warming up the GPUs...',
+        'Polishing the bits...',
+        'Downloading more RAM...',
+        'Training the AI hamsters...',
+        'Defragging the database...',
+        'Aligning the code prisms...',
+        'Booting up the mainframe...',
+        'Initializing hyperdrive...',
+        'Charging the laser beams...',
+        'Consulting the documentation...',
+        'Reticulating splines...',
+        'Politely asking the server...',
+        'Reversing the polarity...',
+        'Engaging warp drive...',
+        'Initializing the hyperdrive...',
+        'Bending the space-time continuum...',
+        'Asking ChatGPT for help...',
+        'Counting to infinity...',
+        'Dividing by zero...'
+      ];
+
+      let currentMessageIndex = 0;
+      let messageInterval;
+
+      // Update loading state UI
+      function updateLoadingState(stage, progress) {
+        const loadingText = document.querySelector('.loading-text');
+        const progressBar = document.querySelector('.progress-bar');
+        const statusMessage = document.querySelector('.status-message');
+        
+        if (loadingText) {
+          loadingText.textContent = loadingMessages[currentMessageIndex];
+          // Cycle to next message
+          currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
+        }
+        
+        if (progressBar) progressBar.style.width = `${progress || 0}%`;
+        if (statusMessage) {
+          statusMessage.textContent = progress < 100 ? 
+            'This may take a moment for larger repositories' : 
+            'Almost there...';
+        }
+      }
+
       // Handle form submission
       document.getElementById('repoForm').addEventListener('submit', function(e) {
           e.preventDefault();
+          
+          // Get the form and button elements
+          const form = e.target;
+          const submitButton = form.querySelector('button[type="submit"]');
           const url = document.getElementById('github_url').value;
-          document.getElementById('loading').style.display = 'block';
+          const loadingElement = document.getElementById('loading');
+          
+          // Disable the submit button to prevent double submission
+          if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.innerHTML = 'Working...';
+          }
+          
+          // Reset UI
+          loadingElement.style.display = 'block';
           document.getElementById('welcome').style.display = 'none';
           document.getElementById('result').style.display = 'none';
           document.getElementById('error').style.display = 'none';
           document.querySelector('.result-actions').style.display = 'none';
+          
+          // Initial loading state
+          updateLoadingState('init', 5);
+          
+          // Start cycling through messages
+          messageInterval = setInterval(() => {
+            updateLoadingState();
+          }, 2000); // Change message every 2 seconds
+          
+          // Simulate progress updates
+          const progressInterval = setInterval(() => {
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) {
+              const currentWidth = parseFloat(progressBar.style.width || '0');
+              if (currentWidth < 90) { // Don't go to 100% until done
+                const increment = Math.random() * 3 + 1; // Slower increment between 1-3%
+                updateLoadingState(null, Math.min(currentWidth + increment, 90));
+              }
+            }
+          }, 800); // Slower progress updates
 
           // Call WASM with callback
           window.generateMarkdown(url, function(result) {
+              clearInterval(progressInterval);
+              clearInterval(messageInterval);
               try {
                   const data = JSON.parse(result);
-                  document.getElementById('markdown').textContent = data.markdown;
-                  document.getElementById('loading').style.display = 'none';
-                  document.getElementById('welcome').style.display = 'none';
-                  document.getElementById('result').style.display = 'block';
-                  document.querySelector('.result-actions').style.display = 'block';
+                  updateLoadingState(null, 100);
+                  
+                  // Small delay to show completion
+                  setTimeout(() => {
+                      document.getElementById('markdown').textContent = data.markdown;
+                      loadingElement.style.display = 'none';
+                      document.getElementById('welcome').style.display = 'none';
+                      document.getElementById('result').style.display = 'block';
+                      document.querySelector('.result-actions').style.display = 'block';
+                      
+                      // Re-enable the submit button
+                      const submitButton = document.querySelector('#repoForm button[type="submit"]');
+                      if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = 'Generate';
+                      }
+                      
+                      // Scroll to result
+                      document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+                  }, 300);
+                  
               } catch (error) {
                   console.error('Error:', error);
-                  document.getElementById('loading').style.display = 'none';
+                  clearInterval(progressInterval);
+                  clearInterval(messageInterval);
+                  loadingElement.style.display = 'none';
+                  
+                  // Re-enable the submit button on error
+                  const submitButton = document.querySelector('#repoForm button[type="submit"]');
+                  if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Generate';
+                  }
+                  
                   document.getElementById('welcome').style.display = 'block';
                   document.getElementById('error').style.display = 'block';
-                  document.getElementById('error').textContent = 'An error occurred while generating the markdown. Please check the URL and try again.';
+                  document.getElementById('error').innerHTML = `
+                    <strong>Error:</strong> An error occurred while generating the markdown.<br>
+                    ${error.message || 'Please check the URL and try again.'}
+                  `;
               }
           });
       });
