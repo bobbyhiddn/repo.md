@@ -1,16 +1,70 @@
-version: '3.8'
-
 services:
-  web:
+  # Flask backend service
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "8081:5000"
     volumes:
-      # Mount only the necessary development files
+      # Mount all source files for development
       - ./app.py:/app/app.py
       - ./scribe_core.py:/app/scribe_core.py
+      - ./utils:/app/utils
+      - ./static:/app/static
+      - ./capacitor/dist:/app/static/capacitor
     environment:
       - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - wasm-builder
     restart: unless-stopped
+    command: ["python", "app.py"]
+
+  # WASM builder service
+  wasm-builder:
+    image: golang:1.21
+    volumes:
+      - ./wasm:/go/src/app/wasm
+      - ./capacitor/src/public/assets:/go/src/app/output
+    working_dir: /go/src/app
+    command: >
+      bash -c "cd wasm && 
+              GOARCH=wasm GOOS=js go build -o main.wasm && 
+              cp main.wasm /go/src/app/output/ && 
+              cp /usr/local/go/misc/wasm/wasm_exec.js /go/src/app/output/ && 
+              echo 'WASM build completed - files copied to capacitor/src/public/assets'"
+
+  # Frontend development service
+  frontend:
+    image: node:18
+    volumes:
+      - ./capacitor:/app
+      # Don't mount node_modules from host
+    working_dir: /app
+    ports:
+      - "3000:5173" # For Vite dev server
+    # Install dependencies in container and then start server
+    command: bash -c "npm install && npm run start -- --host 0.0.0.0"
+
+  # File watcher for WASM builds
+  wasm-watcher:
+    image: golang:1.21
+    volumes:
+      - ./wasm:/go/src/app/wasm
+      - ./capacitor/src/public/assets:/go/src/app/output
+    working_dir: /go/src/app
+    command: >
+      bash -c "apt-get update && apt-get install -y inotify-tools && 
+              echo 'Watching for changes in wasm directory...' && 
+              while true; do 
+                inotifywait -e modify -e create -e delete -r /go/src/app/wasm && 
+                echo 'Changes detected, rebuilding WASM...' && 
+                cd wasm && 
+                GOARCH=wasm GOOS=js go build -o main.wasm && 
+                cp main.wasm /go/src/app/output/ && 
+                cp /usr/local/go/misc/wasm/wasm_exec.js /go/src/app/output/ && 
+                echo 'WASM rebuild completed'; 
+              done"
+    depends_on:
+      - wasm-builder

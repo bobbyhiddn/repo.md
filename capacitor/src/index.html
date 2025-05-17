@@ -146,201 +146,244 @@ Paste a GitHub repository URL above to get started!</code></pre>
     </div>
   </div>
 
-  <footer class="footer"> <!-- Changed tag to div with class for consistency -->
-    <p>Powered by Python &amp; Flask. Inspired by GitHub.</p>
+  <footer class="footer">
+    <p>Powered by Go WASM &amp; GitHub API. Inspired by GitHub.</p>
   </footer>
-
-<script src="assets/wasm_exec.js"></script>
+<!-- All script logic related to WASM will be here -->
 <script>
-    // Initialize WASM
-    const go = new Go();
-    let wasmInstance = null;
+    const worker = new Worker('wasm-worker.js'); // Path relative to index.html in dist/
+    
+    // Initialize WASM as soon as the worker is created
+    console.log('Sending initWasm message to worker');
+    worker.postMessage({ type: 'initWasm' });
 
-    // Failsafe: Add a submit event listener to the form to prevent default submission
-    const mainForm = document.getElementById('repoForm');
-    if (mainForm) {
-        mainForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        });
-    }
-
-    WebAssembly.instantiateStreaming(fetch('assets/main.wasm'), go.importObject).then((result) => {
-      wasmInstance = result.instance;
-      go.run(wasmInstance);
-
-      // Fun loading messages with tech jargon
-      const loadingMessages = [
-        'Initializing quantum repository scanner...',
-        'Calibrating neural networks...',
-        'Brewing coffee for the dev team...',
-        'Herding code cats...',
-        'Compiling markdown particles...',
-        'Initializing the flux capacitor...',
-        'Warming up the GPUs...',
-        'Polishing the bits...',
-        'Downloading more RAM...',
-        'Training the AI hamsters...',
-        'Defragging the database...',
-        'Aligning the code prisms...',
-        'Booting up the mainframe...',
-        'Initializing hyperdrive...',
-        'Charging the laser beams...',
-        'Consulting the documentation...',
-        'Reticulating splines...',
-        'Politely asking the server...',
-        'Reversing the polarity...',
-        'Engaging warp drive...',
-        'Initializing the hyperdrive...',
-        'Bending the space-time continuum...',
-        'Asking ChatGPT for help...',
-        'Counting to infinity...',
-        'Dividing by zero...'
-      ];
-
-      let currentMessageIndex = 0;
-      let messageInterval;
+    // Fun loading messages with tech jargon
+    const loadingMessages = [
+      'Initializing quantum repository scanner...',
+      'Calibrating neural networks...',
+      'Brewing coffee for the dev team...',
+      'Herding code cats...',
+      'Compiling markdown particles...',
+      'Initializing the flux capacitor...',
+      'Warming up the GPUs...',
+      'Polishing the bits...',
+      'Downloading more RAM...',
+      'Training the AI hamsters...',
+      'Defragging the database...',
+      'Aligning the code prisms...',
+      'Booting up the mainframe...',
+      'Initializing hyperdrive...',
+      'Charging the laser beams...',
+      'Consulting the documentation...',
+      'Reticulating splines...',
+      'Politely asking the server...',
+      'Reversing the polarity...',
+      'Engaging warp drive...',
+      'Initializing the hyperdrive...',
+      'Bending the space-time continuum...',
+      'Asking ChatGPT for help...',
+      'Counting to infinity...',
+      'Dividing by zero...'
+    ];
+    
+    let currentMessageIndex = 0;
+    let messageInterval;
+    let progressInterval; // Keep this accessible
 
       // Update loading state UI
-      function updateLoadingState(stage, progress) {
-        const loadingText = document.querySelector('.loading-text');
-        const progressBar = document.querySelector('.progress-bar');
-        const statusMessage = document.querySelector('.status-message');
-        
-        if (loadingText) {
-          loadingText.textContent = loadingMessages[currentMessageIndex];
-          // Cycle to next message
-          currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
-        }
-        
-        if (progressBar) progressBar.style.width = `${progress || 0}%`;
-        if (statusMessage) {
-          statusMessage.textContent = progress < 100 ? 
-            'This may take a moment for larger repositories' : 
-            'Almost there...';
-        }
+    function updateLoadingState(stage, progress) {
+      const loadingText = document.querySelector('.loading-text');
+      const progressBar = document.querySelector('.progress-bar');
+      const statusMessage = document.querySelector('.status-message');
+      
+      if (loadingText && loadingMessages.length > 0) { // Check length to prevent error if array is empty
+        loadingText.textContent = loadingMessages[currentMessageIndex];
+        currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
       }
+      
+      if (progressBar) progressBar.style.width = `${progress || 0}%`;
+      if (statusMessage) {
+        statusMessage.textContent = progress < 100 ? 
+          'This may take a moment for larger repositories' : 
+          'Almost there...';
+      }
+    }
 
-      // Handle button click
-      document.getElementById('submitBtn').addEventListener('click', function(e) {
-          e.preventDefault(); // Prevent any default action
-          e.stopPropagation(); // Stop the event from bubbling up
-          // Get the form and button elements
-          const form = document.getElementById('repoForm');
-          const submitButton = this;
-          const url = document.getElementById('github_url').value;
-          const loadingElement = document.getElementById('loading');
-          
-          // Validate the form
-          if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-          }
-          
-          // Disable the submit button to prevent double submission
-          submitButton.disabled = true;
-          submitButton.innerHTML = 'Working...';
-          
-          // Reset UI
-          loadingElement.style.display = 'block';
-          document.getElementById('welcome').style.display = 'none';
-          document.getElementById('result').style.display = 'none';
-          document.getElementById('error').style.display = 'none';
-          document.querySelector('.result-actions').style.display = 'none';
-          
-          // Initial loading state
-          updateLoadingState('init', 5);
-          
-          // Start cycling through messages
-          messageInterval = setInterval(() => {
-            updateLoadingState();
-          }, 2000); // Change message every 2 seconds
-          
-          // Simulate progress updates
-          const progressInterval = setInterval(() => {
-            const progressBar = document.querySelector('.progress-bar');
-            if (progressBar) {
-              const currentWidth = parseFloat(progressBar.style.width || '0');
-              if (currentWidth < 90) { // Don't go to 100% until done
-                const increment = Math.random() * 3 + 1; // Slower increment between 1-3%
-                updateLoadingState(null, Math.min(currentWidth + increment, 90));
-              }
+    function showUIMessage(elementId, message, isError = false) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        el.innerHTML = message;
+        el.style.display = 'block';
+        if (isError) {
+             console.error(message);
+        }
+    }
+
+    function resetUIForNewRequest() {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('welcome').style.display = 'none';
+        document.getElementById('result').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+        document.querySelector('.result-actions').style.display = 'none';
+        document.getElementById('markdown').textContent = ''; // Clear previous results
+    }
+
+    function enableSubmitButton() {
+        console.log('enableSubmitButton called');
+        const submitButton = document.getElementById('submitBtn');
+        if (submitButton) {
+            console.log('Found submitBtn, current disabled state:', submitButton.disabled);
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Generate';
+            console.log('Button enabled, new state:', submitButton.disabled);
+            
+            // Force a redraw of the button
+            submitButton.style.opacity = '0.99';
+            setTimeout(() => {
+                submitButton.style.opacity = '1';
+                console.log('Button opacity reset, final disabled state:', submitButton.disabled);
+            }, 10);
+        } else {
+            console.error('Submit button not found in DOM!');
+        }
+    }
+    
+    function handleWorkerError(errorMessage, details = '') {
+        console.error('Worker Error:', errorMessage, details);
+        clearInterval(progressInterval);
+        clearInterval(messageInterval);
+        document.getElementById('loading').style.display = 'none';
+        enableSubmitButton();
+        document.getElementById('welcome').style.display = 'none'; // Hide welcome
+        showUIMessage('error', `<strong>Error:</strong> ${errorMessage}<br><small>${details}</small>`, true);
+    }
+
+    worker.onmessage = (event) => {
+        const { type, result, error, message } = event.data;
+
+        if (type === 'wasmReady') {
+            console.log("WASM is ready in worker.");
+            // Just enable the button, don't show loading yet
+            enableSubmitButton(); // Enable button once WASM is ready
+        } else if (type === 'wasmError') {
+            handleWorkerError('WASM Initialization Failed.', error);
+        } else if (type === 'markdownResult') {
+            clearInterval(progressInterval);
+            clearInterval(messageInterval);
+            try {
+                const data = JSON.parse(result); // Result from Go WASM callback
+                if (data.markdown.startsWith("Error:")) { // Check if Go itself sent an error string
+                    handleWorkerError(data.markdown, `Repo: ${data.repo_name}`);
+                    return;
+                }
+
+                updateLoadingState(null, 100);
+                
+                setTimeout(() => {
+                    document.getElementById('markdown').textContent = data.markdown;
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('welcome').style.display = 'none';
+                    document.getElementById('result').style.display = 'block';
+                    document.querySelector('.result-actions').style.display = 'flex'; // Use flex for display
+                    enableSubmitButton();
+                    document.getElementById('resultContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
+                
+            } catch (parseError) {
+                handleWorkerError('Failed to parse result from WASM.', `Details: ${parseError.message}. Raw: ${result}`);
             }
-          }, 800); // Slower progress updates
+        } else if (type === 'error') { // General error from worker logic
+             handleWorkerError(message || 'An unexpected error occurred in the worker.', error);
+        }
+    };
+    
+    // Hide loading initially - only show when user clicks Generate
+    document.getElementById('loading').style.display = 'none';
+    const initialSubmitButton = document.getElementById('submitBtn');
+    if (initialSubmitButton) initialSubmitButton.disabled = true; // Disable until WASM ready
 
-          // Call WASM with callback
-          window.generateMarkdown(url, function(result) {
-              clearInterval(progressInterval);
-              clearInterval(messageInterval);
-              try {
-                  const data = JSON.parse(result);
-                  updateLoadingState(null, 100);
-                  
-                  // Small delay to show completion
-                  setTimeout(() => {
-                      document.getElementById('markdown').textContent = data.markdown;
-                      loadingElement.style.display = 'none';
-                      document.getElementById('welcome').style.display = 'none';
-                      document.getElementById('result').style.display = 'block';
-                      document.querySelector('.result-actions').style.display = 'block';
-                      
-                      // Re-enable the submit button
-                      const submitButton = document.querySelector('#repoForm button[type="submit"]');
-                      if (submitButton) {
-                        submitButton.disabled = false;
-                        submitButton.innerHTML = 'Generate';
-                      }
-                      
-                      // Scroll to result
-                      document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
-                  }, 300);
-                  
-              } catch (error) {
-                  console.error('Error:', error);
-                  clearInterval(progressInterval);
-                  clearInterval(messageInterval);
-                  loadingElement.style.display = 'none';
-                  
-                  // Re-enable the submit button on error
-                  const submitButton = document.querySelector('#repoForm button[type="submit"]');
-                  if (submitButton) {
-                    submitButton.disabled = false;
-                    submitButton.innerHTML = 'Generate';
-                  }
-                  
-                  document.getElementById('welcome').style.display = 'block';
-                  document.getElementById('error').style.display = 'block';
-                  document.getElementById('error').innerHTML = `
-                    <strong>Error:</strong> An error occurred while generating the markdown.<br>
-                    ${error.message || 'Please check the URL and try again.'}
-                  `;
-              }
-          });
+
+    document.getElementById('submitBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const form = document.getElementById('repoForm');
+        const submitButton = this; // `this` is the button
+        const urlInput = document.getElementById('github_url');
+        const url = urlInput.value;
+        
+        if (!form.checkValidity() || !url) {
+          urlInput.reportValidity(); // Show validation message on input
+          return;
+        }
+        
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Working...';
+        
+        resetUIForNewRequest();
+        updateLoadingState('init', 5); // Initial visual progress
+        
+        // Start loading messages cycle
+        currentMessageIndex = 0; // Reset message index
+        messageInterval = setInterval(() => {
+          updateLoadingState(); // Will cycle through messages
+        }, 2000);
+        
+        // Simulate progress updates
+        progressInterval = setInterval(() => {
+          const progressBar = document.querySelector('.progress-bar');
+          if (progressBar) {
+            const currentWidth = parseFloat(progressBar.style.width || '0');
+            if (currentWidth < 90) {
+              const increment = Math.random() * 5 + 2; // Slightly faster perceived progress
+              updateLoadingState(null, Math.min(currentWidth + increment, 90));
+            }
+          }
+        }, 500); // Update progress faster
+
+        worker.postMessage({ type: 'generateMarkdown', url: url });
+    });
+
+    // Failsafe for form submission if button type is "submit" (it's "button" now)
+    document.getElementById('repoForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        // Trigger click on the actual button to ensure consistent logic
+        document.getElementById('submitBtn').click();
+    });
+    // Copy and Download button listeners
+    document.getElementById('copyBtn').addEventListener('click', function() {
+      const markdownText = document.getElementById('markdown').textContent;
+      navigator.clipboard.writeText(markdownText).then(() => {
+        alert('Copied to clipboard!');
+      }, (err) => {
+        console.error('Could not copy text: ', err);
+        alert('Failed to copy. Please try manually.');
       });
     });
 
-    function copyToClipboard() {
-      const markdown = document.getElementById('markdown').textContent;
-      navigator.clipboard.writeText(markdown).then(function() {
-        alert('Copied to clipboard!');
-      }).catch(function(err) {
-        console.error('Could not copy text: ', err);
-      });
-    }
-
-    document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
-
     document.getElementById('downloadBtn').addEventListener('click', function() {
-      const markdown = document.getElementById('markdown').textContent;
-      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const markdownText = document.getElementById('markdown').textContent;
+      const repoName = document.getElementById('github_url').value.split('/').pop() || 'repository';
+      const blob = new Blob([markdownText], { type: 'text/markdown;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'README.md';
+      a.download = `${repoName}.md`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     });
+    
+    // Direct fix to ensure button becomes enabled
+    setTimeout(() => {
+      console.log('Force-enabling submit button');
+      const submitBtn = document.getElementById('submitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        console.log('Button force-enabled');
+      }
+    }, 1000);
   </script>
 </body>
 </html>

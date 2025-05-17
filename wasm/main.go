@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+// Define a package-level HTTP client
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second, // Keep a reasonable timeout
+}
+
+const MAX_FILE_SIZE = 1 * 1024 * 1024 // 1MB limit for file content
+
 // GitHubItem represents an item in a GitHub repository (file or directory)
 // We use `json:"url"` for APIURL because that's the field name from GitHub API for a directory's content listing URL.
 // `DownloadURL` is specific to files for their raw content.
@@ -23,6 +30,7 @@ type GitHubItem struct {
 	Type        string  `json:"type"`         // "file" or "dir"
 	DownloadURL *string `json:"download_url"` // Pointer to handle null for directories
 	APIURL      string  `json:"url"`          // API URL for this item's details or, if a dir, its contents
+	Size        int64   `json:"size"`         // File size in bytes
 }
 
 type Result struct {
@@ -31,12 +39,9 @@ type Result struct {
 }
 
 func main() {
-	// Initialize HTTP client for WASM
-	http.DefaultClient.Timeout = 30 * time.Second
-
 	// Register the WASM function
 	js.Global().Set("generateMarkdown", js.FuncOf(generateMarkdown))
-
+	
 	// Keep the program running
 	<-make(chan bool)
 }
@@ -109,11 +114,19 @@ func processDirectoryContents(directoryAPIURL string, markdown *strings.Builder,
 		return fmt.Errorf("max recursion depth %d reached for %s", maxRecursionDepth, directoryAPIURL)
 	}
 
-	// Sleep before each new directory API call to be kind to the API and browser
-	time.Sleep(100 * time.Millisecond)
+	// No sleep needed - we're using proper request handling now
 	js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Attempting to GET directory: %s", depth, directoryAPIURL))
-	resp, err := http.Get(directoryAPIURL)
-	js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: GET directory response for %s. Status: %v, Error: %v", depth, directoryAPIURL, resp, err))
+	req, err := http.NewRequest("GET", directoryAPIURL, nil)
+	if err != nil {
+		markdown.WriteString(fmt.Sprintf("\nError creating request for %s: %v\n", directoryAPIURL, err))
+		return fmt.Errorf("http.NewRequest %s: %w", directoryAPIURL, err)
+	}
+	// It's good practice to set a User-Agent
+	req.Header.Set("User-Agent", "RepoMD-WASM-Client/1.0 (+https://repo-md.com)")
+	req.Header.Set("Accept", "application/vnd.github.v3+json") // Be explicit
+
+	resp, err := httpClient.Do(req)
+	js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: API response for %s. Status: %v, Error: %v", depth, directoryAPIURL, resp, err))
 	if err != nil {
 		markdown.WriteString(fmt.Sprintf("\nError fetching directory contents from %s: %v\n", directoryAPIURL, err))
 		return fmt.Errorf("http.Get %s: %w", directoryAPIURL, err)
@@ -139,22 +152,32 @@ func processDirectoryContents(directoryAPIURL string, markdown *strings.Builder,
 
 	for _, item := range items {
 		js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Processing item: Path: %s, Type: %s, API URL: %s, DownloadURL: %v", depth, item.Path, item.Type, item.APIURL, item.DownloadURL))
-		// Sleep for each item in the loop to give browser time
-		time.Sleep(50 * time.Millisecond)
 
 		if item.Type == "file" && item.DownloadURL != nil && *item.DownloadURL != "" {
-			// Optional: progress update via callback
-			// callback.Invoke(fmt.Sprintf(`{"status": "Fetching file: %s"}`, item.Path))
-			markdown.WriteString(fmt.Sprintf("## %s\n\n", item.Path)) // Add file header
-			js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Attempting to GET file: %s, URL: %s", depth, item.Path, *item.DownloadURL))
-			fileResp, fileErr := http.Get(*item.DownloadURL)
-			js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: GET file response for %s. Status: %v, Error: %v", depth, item.Path, fileResp, fileErr))
-			if fileErr != nil {
-				markdown.WriteString(fmt.Sprintf("Error fetching file %s: %v\n\n", item.Path, fileErr))
-				// fileResp might be nil here, so careful with fileResp.Body.Close()
+			markdown.WriteString(fmt.Sprintf("## /%s\n", item.Path)) // Use item.Path as it's the full path
+
+			if item.Size > MAX_FILE_SIZE {
+				markdown.WriteString(fmt.Sprintf("\n[File too large (%d bytes, limit %d bytes), content omitted.]\n\n", item.Size, MAX_FILE_SIZE))
 				continue
 			}
+            if item.Size == 0 { // Handle empty files
+                markdown.WriteString(fmt.Sprintf("```%s\n[Empty File]\n```\n\n", getFileExtension(item.Path)))
+                continue
+            }
 
+			fileReq, fileReqErr := http.NewRequest("GET", *item.DownloadURL, nil)
+			if fileReqErr != nil {
+				markdown.WriteString(fmt.Sprintf("Error creating request for file %s: %v\n\n", item.Path, fileReqErr))
+				continue
+			}
+			fileReq.Header.Set("User-Agent", "RepoMD-WASM-Client/1.0 (+https://repo-md.com)")
+
+			fileResp, fileErr := httpClient.Do(fileReq)
+			if fileErr != nil {
+				markdown.WriteString(fmt.Sprintf("Error fetching file %s: %v\n\n", item.Path, fileErr))
+				continue
+			}
+			
 			if fileResp.StatusCode != http.StatusOK {
 				markdown.WriteString(fmt.Sprintf("Error: GitHub API returned status %d for file %s\n\n", fileResp.StatusCode, item.Path))
 				fileResp.Body.Close()
@@ -162,21 +185,23 @@ func processDirectoryContents(directoryAPIURL string, markdown *strings.Builder,
 			}
 
 			bodyBytes, readErr := io.ReadAll(fileResp.Body)
-			fileResp.Body.Close() // Close body immediately
+			fileResp.Body.Close() 
 
 			if readErr != nil {
 				markdown.WriteString(fmt.Sprintf("Error reading content of file %s: %v\n\n", item.Path, readErr))
 				continue
 			}
-			ext := ""
-			lastDot := strings.LastIndex(item.Path, ".")
-			if lastDot > -1 && lastDot < len(item.Path)-1 {
-				ext = strings.ToLower(item.Path[lastDot+1:])
-			}
-			if ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" || ext == "svg" || ext == "ico" || ext == "webp" {
-				markdown.WriteString(fmt.Sprintf("### %s\n(Non-code file, content omitted)\n\n", item.Path))
+			
+			ext := getFileExtension(item.Path)
+			if isImageExtension(ext) {
+				markdown.WriteString(fmt.Sprintf("(Image file: `%s`, content omitted)\n\n", item.Name))
 			} else {
-				markdown.WriteString(fmt.Sprintf("```%s\n%s\n```\n\n", ext, string(bodyBytes)))
+				// Basic check for binary-like content (heuristic)
+				if isPotentiallyBinary(bodyBytes) && !isCommonTextFormat(ext) {
+						markdown.WriteString(fmt.Sprintf("(Potentially binary file: `%s`, content omitted)\n\n", item.Name))
+				} else {
+						markdown.WriteString(fmt.Sprintf("```%s\n%s\n```\n\n", ext, string(bodyBytes)))
+				}
 			}
 
 		} else if item.Type == "dir" {
@@ -200,12 +225,56 @@ func processDirectoryContents(directoryAPIURL string, markdown *strings.Builder,
 	return nil
 }
 
+func getFileExtension(filePath string) string {
+	lastDot := strings.LastIndex(filePath, ".")
+	if lastDot > -1 && lastDot < len(filePath)-1 {
+		return strings.ToLower(filePath[lastDot+1:])
+	}
+	return ""
+}
+
+func isImageExtension(ext string) bool {
+	imageExtensions := map[string]bool{"png": true, "jpg": true, "jpeg": true, "gif": true, "svg": true, "ico": true, "webp": true, "bmp": true}
+	return imageExtensions[ext]
+}
+
+// isPotentiallyBinary checks for a high proportion of non-printable ASCII or null bytes.
+// This is a simple heuristic.
+func isPotentiallyBinary(data []byte) bool {
+    if len(data) == 0 {
+        return false
+    }
+    nonPrintable := 0
+    limit := len(data)
+    if limit > 512 { // Check only first 512 bytes for performance
+        limit = 512
+    }
+    for i := 0; i < limit; i++ {
+        b := data[i]
+        if b == 0x00 { // Null byte is a strong indicator
+            nonPrintable++
+        } else if (b < 32 || b > 126) && b != '\n' && b != '\r' && b != '\t' {
+            nonPrintable++
+        }
+    }
+    // If more than 20% of checked bytes are non-printable/null, assume binary
+    return float64(nonPrintable)/float64(limit) > 0.20
+}
+
+func isCommonTextFormat(ext string) bool {
+    // Add extensions that are text-based but might trigger the binary heuristic
+    // (e.g. minified JS, some data files)
+    commonTextExts := map[string]bool{"json": true, "xml": true, "csv": true, "tsv":true, "md": true, "txt": true, "html": true, "css": true, "js": true, "ts": true, "py": true, "go": true, "java": true, "c": true, "cpp": true, "h": true, "hpp": true, "sh": true, "rb": true, "php": true, "yml": true, "yaml": true, "toml": true, "ini": true, "lock": true}
+    return commonTextExts[ext]
+}
+
+
 func sendResult(callback js.Value, result Result) {
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		js.Global().Get("console").Call("error", "Failed to marshal result for callback:", err.Error())
 		// Send a fallback error to JS if marshaling fails
-		errorResult := `{"repo_name": "Internal Error", "markdown": "Error: Could not serialize response."}`
+		errorResult := `{"repo_name": "` + result.RepoName + `", "markdown": "Error: Could not serialize response from WASM."}`
 		callback.Invoke(errorResult)
 		return
 	}
