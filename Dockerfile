@@ -32,6 +32,9 @@ RUN mkdir -p static
 # Copy frontend files directly from capacitor/src
 COPY capacitor/src/ static/
 
+# Ensure wasm-worker.js is present
+COPY capacitor/src/public/wasm-worker.js static/
+
 # Copy WASM files
 COPY --from=wasm-builder /go/src/repo.md/wasm/main.wasm static/assets/
 COPY --from=wasm-builder /go/src/repo.md/wasm/wasm_exec.js static/assets/
