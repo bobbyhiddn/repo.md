@@ -2,12 +2,112 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark"> <!-- Respects user's system theme preference -->
   <title>How repo.md Works | Convert GitHub Repo to Readme</title>
   <meta name="description" content="Learn how repo.md seamlessly converts GitHub repositories into clean, AI-friendly markdown documentation, and how its GitOps workflows automate deployments.">
   <link rel="canonical" href="https://repo-md.com/how-it-works" />
+  <link rel="icon" type="image/png" href="assets/imgs/repo-md.png">
   <link rel="stylesheet" href="styles.css">
-  <!-- Add JSON-LD Schema if applicable -->
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "How repo.md Works",
+    "description": "Learn how repo.md seamlessly converts GitHub repositories into clean, AI-friendly markdown documentation.",
+    "url": "https://repo-md.com/how-it-works",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "repo.md",
+      "url": "https://repo-md.com"
+    }
+  }
+  </script>
+  <style>
+    /* Additional styles for the How It Works page */
+    .section {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .section h2 {
+      color: #0366d6;
+      border-bottom: 2px solid #e1e4e8;
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+    
+    .section h3 {
+      color: #2ea44f;
+      margin-top: 1.5rem;
+    }
+    
+    code {
+      background-color: #f0f0f0;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    
+    .intro {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: #555;
+      margin-bottom: 2rem;
+    }
+    
+    ol li, ul li {
+      margin-bottom: 0.5rem;
+      line-height: 1.5;
+    }
+    
+    .mermaid {
+      background-color: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      margin: 2rem 0;
+      overflow-x: auto;
+      width: 100%;
+      min-height: 400px;
+      display: flex;
+      justify-content: center;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      .section {
+        background-color: #21262d;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      }
+      
+      .section h2 {
+        color: #58a6ff;
+        border-bottom-color: #30363d;
+      }
+      
+      .section h3 {
+        color: #3fb950;
+      }
+      
+      code {
+        background-color: #161b22;
+      }
+      
+      .intro {
+        color: #c9d1d9;
+      }
+      
+      .mermaid {
+        background-color: #0d1117;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      }
+    }
+  </style>
 </head>
 <body>
   <header class="header">
@@ -23,50 +123,60 @@
 
     <div class="section">
       <h2>1. Core Web App Functionality (Runtime)</h2>
-      <p>The primary function of repo.md is to take a public GitHub repository URL and generate a single Markdown document representing its structure and content. This process is handled by a Python Flask backend when a user interacts with the live application.</p>
+      <p>The primary function of repo.md is to take a public GitHub repository URL and generate a single Markdown document representing its structure and content. This process is handled by Go WASM (WebAssembly) which executes directly in the browser when a user interacts with the application.</p>
       <ol>
         <li><strong>User Input:</strong> A user enters a GitHub repository URL into the input field on the <a href="/">repo.md homepage</a> (<code>capacitor/src/index.html</code>).</li>
-        <li><strong>API Request:</strong> Upon submission, the frontend JavaScript makes an asynchronous POST request to the <code>/generate_markdown</code> API endpoint of the deployed application.</li>
-        <li><strong>Backend Processing (<code>app.py</code>):</strong>
+        <li><strong>WASM Initialization:</strong> Upon page load, a Web Worker loads and initializes the Go WASM module (<code>main.wasm</code>):
           <ul>
-            <li>The Flask application (running on Fly.io) receives the GitHub URL.</li>
-            <li>It creates a temporary directory on the server.</li>
-            <li>It uses a <code>subprocess</code> to execute <code>git clone --depth 1 <github_url> <temp_dir></code>. This clones only the latest commit of the *target repository* to save time and space.</li>
-            <li>If the clone is successful, it calls the <code>read_directory_to_markdown</code> function from <code>scribe_core.py</code>.</li>
+            <li>The worker first loads <code>wasm_exec.js</code> (provided by Go) to set up the WASM environment.</li>
+            <li>Then it instantiates the compiled WASM module (<code>main.wasm</code>) which contains the Go code.</li>
+            <li>The Go runtime starts in the worker thread, running independently from the main browser thread.</li>
           </ul>
         </li>
-        <li><strong>Markdown Generation (<code>scribe_core.py</code>):</strong>
+        <li><strong>GitHub API Processing (<code>wasm/main.go</code>):</strong>
           <ul>
-            <li>The <code>read_directory_to_markdown</code> function recursively traverses the cloned repository's directory structure.</li>
-            <li>It respects <code>.gitignore</code> files found in the repository root to exclude unwanted files and directories, using the <code>pathspec</code> library.</li>
-            <li>For each file, it checks if it's readable as text. Binary or unreadable files are marked as such.</li>
-            <li>Readable file contents are embedded within Markdown code blocks, prefixed by a header indicating their path. Directories are represented as Markdown headers.</li>
-            <li>The function returns a single, large Markdown string.</li>
+            <li>When the user submits a GitHub URL, the frontend JavaScript sends this to the WASM module via the worker.</li>
+            <li>The Go code in the worker makes direct HTTP requests to the GitHub API to retrieve repository information.</li>
+            <li>It fetches the repository structure and file contents using GitHub's REST API endpoints.</li>
+            <li>All processing happens directly in the browser - no server-side processing is needed.</li>
           </ul>
         </li>
-        <li><strong>Response:</strong> <code>app.py</code> sends the generated Markdown content (and the repository name) back to the frontend as a JSON response.</li>
-        <li><strong>Display:</strong> The frontend JavaScript populates a <code><pre><code></code> block with the received Markdown and enables the "Copy to Clipboard" and "Download .md" buttons.</li>
-        <li><strong>Cleanup:</strong> The temporary directory used for cloning is removed from the server.</li>
+        <li><strong>Markdown Generation (<code>wasm/main.go</code>):</strong>
+          <ul>
+            <li>The Go code parses the GitHub API responses and organizes the repository structure.</li>
+            <li>It processes each file, checking content type and determining if it's binary or text.</li>
+            <li>For each text file, the content is retrieved and embedded in Markdown code blocks.</li>
+            <li>The process creates a single, comprehensive Markdown document that represents the entire repository.</li>
+            <li>File size limits and binary detection are implemented to prevent memory issues.</li>
+          </ul>
+        </li>
+        <li><strong>Response:</strong> The WASM module sends the generated Markdown back to the main thread via a callback function.</li>
+        <li><strong>Display:</strong> The frontend JavaScript populates a <code>&lt;pre&gt;&lt;code&gt;</code> block with the received Markdown and enables the "Copy to Clipboard" and "Download .md" buttons.</li>
+        <li><strong>Client-side Execution:</strong> Since all processing happens in the browser via WASM, there's no need for server cleanup or temporary directories.</li>
       </ol>
       <p>The following diagram shows the runtime process of how a GitHub repository URL is processed by the deployed repo.md web app to generate Markdown content:</p>
       <div class="mermaid">
-        flowchart TB
+        flowchart TD
           subgraph "Web App (Runtime)"
-            A["User opens repo.md website"] --> B["Enters GitHub URL"]
-            A --> C["Views generated Markdown"]
-            B --> D["Website logic (Frontend)"]
-            D -- "Sends URL to server for processing" --> E["Server-side code (app.py on Fly.io)"]
-            E -- "Server clones repo & creates Markdown" --> F["Markdown content ready"]
-            F -- "Sends Markdown back to website" --> D
-            D --> C
+            A["User opens repo.md website"] --> W["Go WASM initializes in browser"]
+            A --> B["User enters GitHub URL"]
+            B --> D["Frontend sends URL to WASM worker"]
+            D --> E["Go WASM code in worker"]
+            E -- "Makes direct API requests to GitHub" --> G["GitHub API"] 
+            G -- "Returns repo structure & content" --> E
+            E -- "Processes data & generates Markdown" --> F["Markdown content ready"]
+            F -- "Sends Markdown back to main thread" --> D
+            D --> C["User views generated Markdown"]
           end
 
-          style A fill:#61dafb20,stroke:#61dafb
-          style B fill:#61dafb20,stroke:#61dafb
-          style C fill:#61dafb20,stroke:#61dafb
-          style D fill:#61dafb20,stroke:#61dafb
-          style E fill:#61dafb20,stroke:#61dafb
-          style F fill:#61dafb20,stroke:#61dafb
+          style A fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style B fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style C fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style D fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style E fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style F fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style W fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style G fill:#2ea44f30,stroke:#2ea44f,strokeWidth:2px
       </div>
     </div>
 
@@ -74,7 +184,7 @@
       <h2>2. Web App GitOps Deployment to Fly.io</h2>
       <p>The repo.md web application's deployment to Fly.io is managed via a GitOps workflow. Changes pushed to the <code>main</code> branch automatically trigger a new build and deployment.</p>
       <ol>
-        <li><strong>Git Push:</strong> A developer pushes code changes (e.g., to <code>app.py</code>, <code>scribe_core.py</code>, or frontend files in <code>capacitor/src/</code>) to the <code>main</code> branch of the repo.md GitHub repository.</li>
+        <li><strong>Git Push:</strong> A developer pushes code changes (e.g., to Go code in <code>wasm/main.go</code>, or frontend files in <code>capacitor/src/</code>) to the <code>main</code> branch of the repo.md GitHub repository.</li>
         <li><strong>GitHub Actions Trigger:</strong> This push automatically triggers the <code>.github/workflows/fly-deploy.yml</code> workflow.</li>
         <li><strong>Workflow Execution:</strong>
           <ul>
@@ -83,7 +193,9 @@
             <li><code>flyctl deploy --remote-only</code> is executed. This command tells Fly.io to:
                 <ul>
                     <li>Pull the latest code from the <code>main</code> branch.</li>
-                    <li>Build a new Docker image using the <code>Dockerfile</code> in the repository root. The <code>Dockerfile</code> defines how to package the Python backend (Flask, Gunicorn) and the static frontend assets.</li>
+                    <li>Build a new Docker image using the <code>Dockerfile</code> in the repository root. The <code>Dockerfile</code> defines a multi-stage build process that:</li>
+                    <li>Compiles the Go WASM module from <code>wasm/main.go</code> using the Go compiler</li>
+                    <li>Builds and serves static frontend assets along with the compiled WASM file</li>
                     <li>Deploy this new image to the Fly.io infrastructure as defined in <code>fly.toml</code>.</li>
                 </ul>
             </li>
@@ -93,17 +205,21 @@
       </ol>
       <p>This GitOps deployment pipeline is visualized below:</p>
       <div class="mermaid">
-        flowchart TB
+        flowchart TD
           subgraph "Web App GitOps Deployment"
-            A["Developer pushes code changes to Git"] -->|Triggers| B["GitHub Actions workflow starts (fly-deploy.yml)"];
-            B -- "GitHub Actions workflow instructs Fly.io to deploy" --> C["Cloud platform (Fly.io) processes request"]
-            C -- "Platform builds app container (Docker image)\n& deploys it to live servers" --> D["Updated website is live (repo-md.com)"]
+            A["Developer pushes code changes to Git"] -->|Triggers| B["GitHub Actions workflow starts (fly-deploy.yml)"]
+            B -- "GitHub Actions workflow instructs Fly.io to deploy" --> C["Fly.io processes deployment request"]
+            C -- "1. Compiles Go code to WASM" --> W["WebAssembly module built (main.wasm)"]
+            W -- "2. Combines with frontend assets" --> P["Complete static site package created"]
+            P -- "3. Deployed to Fly.io CDN" --> D["Updated website is live (repo-md.com)"]
           end
 
-          style A fill:#0366d620,stroke:#0366d6
-          style B fill:#ff950020,stroke:#ff9500
-          style C fill:#6f42c120,stroke:#6f42c1
-          style D fill:#2ea44f20,stroke:#2ea44f
+          style A fill:#0366d630,stroke:#0366d6,strokeWidth:2px
+          style B fill:#ff950030,stroke:#ff9500,strokeWidth:2px
+          style C fill:#6f42c130,stroke:#6f42c1,strokeWidth:2px
+          style W fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style P fill:#6f42c130,stroke:#6f42c1,strokeWidth:2px
+          style D fill:#2ea44f30,stroke:#2ea44f,strokeWidth:2px
       </div>
     </div>
 
@@ -146,17 +262,17 @@
       </ol>
       <p>This automated iOS build and deployment pipeline is shown below:</p>
       <div class="mermaid">
-        flowchart TB
+        flowchart TD
           subgraph "iOS App GitOps Build & Deployment"
             A["Developer pushes code or starts iOS build manually"] -->|Triggers| B["GitHub Actions workflow for iOS build begins (ios.yml)"];
             B -- "GitHub Actions workflow builds web parts,\nupdates iOS project,\n& runs Fastlane (iOS automation)" --> C["iOS App file created (.ipa)"];
             C -- "Fastlane securely signs & uploads app package" --> D["App available to testers on TestFlight / App Store"];
           end
 
-          style A fill:#0366d620,stroke:#0366d6
-          style B fill:#ff950020,stroke:#ff9500
-          style C fill:#34c75920,stroke:#34c759
-          style D fill:#34c75940,stroke:#34c759
+          style A fill:#0366d630,stroke:#0366d6,strokeWidth:2px
+          style B fill:#ff950030,stroke:#ff9500,strokeWidth:2px
+          style C fill:#34c75930,stroke:#34c759,strokeWidth:2px
+          style D fill:#34c75950,stroke:#34c759,strokeWidth:2px
       </div>
     </div>
 
@@ -164,15 +280,31 @@
   </div>
 
   <footer class="footer">
-    <p>Powered by Python & Flask. Inspired by GitHub.</p>
+    <p>Powered by Go WASM &amp; GitHub API. Inspired by GitHub.</p>
   </footer>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  
+  <!-- Improved mermaid diagram handling -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@9.4.0/dist/mermaid.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      // Simple initialization with minimal settings
       mermaid.initialize({
-        startOnLoad: false // We will call run manually
+        startOnLoad: true,
+        theme: window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+        flowchart: {
+          useMaxWidth: true,
+          htmlLabels: true,
+          curve: 'basis'
+        },
+        fontSize: 14
       });
-      mermaid.run();
+      
+      // Listen for theme changes and re-initialize mermaid
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+          location.reload(); // Simple solution: just reload the page on theme change
+        });
+      }
     });
   </script>
 </body>

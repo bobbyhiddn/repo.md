@@ -140,7 +140,7 @@ Paste a GitHub repository URL above to get started!</code></pre>
         <button id="copyBtn" class="action-btn">Copy to Clipboard</button>
         <button id="downloadBtn" class="action-btn">Download .md</button>
       </div>
-      <div id="result" class="result" style="display:none;">
+      <div id="result" style="display:none;">
         <pre><code id="markdown"></code></pre>
       </div>
     </div>
@@ -149,8 +149,7 @@ Paste a GitHub repository URL above to get started!</code></pre>
   <footer class="footer">
     <p>Powered by Go WASM &amp; GitHub API. Inspired by GitHub.</p>
   </footer>
-
-  <!-- All script logic related to WASM will be here -->
+<!-- All script logic related to WASM will be here -->
 <script>
     const worker = new Worker('wasm-worker.js'); // Path relative to index.html in dist/
     
@@ -158,6 +157,35 @@ Paste a GitHub repository URL above to get started!</code></pre>
     console.log('Sending initWasm message to worker');
     worker.postMessage({ type: 'initWasm' });
 
+    // Fun loading messages with tech jargon
+    const loadingMessages = [
+      'Initializing quantum repository scanner...',
+      'Calibrating neural networks...',
+      'Brewing coffee for the dev team...',
+      'Herding code cats...',
+      'Compiling markdown particles...',
+      'Initializing the flux capacitor...',
+      'Warming up the GPUs...',
+      'Polishing the bits...',
+      'Downloading more RAM...',
+      'Training the AI hamsters...',
+      'Defragging the database...',
+      'Aligning the code prisms...',
+      'Booting up the mainframe...',
+      'Initializing hyperdrive...',
+      'Charging the laser beams...',
+      'Consulting the documentation...',
+      'Reticulating splines...',
+      'Politely asking the server...',
+      'Reversing the polarity...',
+      'Engaging warp drive...',
+      'Initializing the hyperdrive...',
+      'Bending the space-time continuum...',
+      'Asking ChatGPT for help...',
+      'Counting to infinity...',
+      'Dividing by zero...'
+    ];
+    
     let currentMessageIndex = 0;
     let messageInterval;
     let progressInterval; // Keep this accessible
@@ -235,19 +263,7 @@ Paste a GitHub repository URL above to get started!</code></pre>
 
         if (type === 'wasmReady') {
             console.log("WASM is ready in worker.");
-            showUIMessage('loading', 'Ready to generate. Enter a GitHub URL.', false); // Initial message
-            
-            // Add defensive checks to prevent null reference errors
-            const loadingTextEl = document.querySelector('.loading-text');
-            if (loadingTextEl) loadingTextEl.textContent = 'Ready to generate!';
-            
-            const progressBarEl = document.querySelector('.progress-bar');
-            if (progressBarEl) progressBarEl.style.width = '0%';
-            
-            const statusMessageEl = document.querySelector('.status-message');
-            if (statusMessageEl) statusMessageEl.textContent = 'Enter a GitHub URL.';
-            
-            // Do not hide loading yet, wait for user input
+            // Just enable the button, don't show loading yet
             enableSubmitButton(); // Enable button once WASM is ready
         } else if (type === 'wasmError') {
             handleWorkerError('WASM Initialization Failed.', error);
@@ -281,10 +297,8 @@ Paste a GitHub repository URL above to get started!</code></pre>
         }
     };
     
-    // Initial state for loading section
-    document.getElementById('loading').style.display = 'block';
-    document.querySelector('.loading-text').textContent = 'Initializing WASM... Please wait.';
-    document.querySelector('.status-message').textContent = 'This might take a moment.';
+    // Hide loading initially - only show when user clicks Generate
+    document.getElementById('loading').style.display = 'none';
     const initialSubmitButton = document.getElementById('submitBtn');
     if (initialSubmitButton) initialSubmitButton.disabled = true; // Disable until WASM ready
 
