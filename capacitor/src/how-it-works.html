@@ -2,12 +2,112 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark"> <!-- Respects user's system theme preference -->
   <title>How repo.md Works | Convert GitHub Repo to Readme</title>
   <meta name="description" content="Learn how repo.md seamlessly converts GitHub repositories into clean, AI-friendly markdown documentation, and how its GitOps workflows automate deployments.">
   <link rel="canonical" href="https://repo-md.com/how-it-works" />
+  <link rel="icon" type="image/png" href="assets/imgs/repo-md.png">
   <link rel="stylesheet" href="styles.css">
-  <!-- Add JSON-LD Schema if applicable -->
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "How repo.md Works",
+    "description": "Learn how repo.md seamlessly converts GitHub repositories into clean, AI-friendly markdown documentation.",
+    "url": "https://repo-md.com/how-it-works",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "repo.md",
+      "url": "https://repo-md.com"
+    }
+  }
+  </script>
+  <style>
+    /* Additional styles for the How It Works page */
+    .section {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .section h2 {
+      color: #0366d6;
+      border-bottom: 2px solid #e1e4e8;
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+    
+    .section h3 {
+      color: #2ea44f;
+      margin-top: 1.5rem;
+    }
+    
+    code {
+      background-color: #f0f0f0;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    
+    .intro {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: #555;
+      margin-bottom: 2rem;
+    }
+    
+    ol li, ul li {
+      margin-bottom: 0.5rem;
+      line-height: 1.5;
+    }
+    
+    .mermaid {
+      background-color: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      margin: 2rem 0;
+      overflow-x: auto;
+      width: 100%;
+      min-height: 400px;
+      display: flex;
+      justify-content: center;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      .section {
+        background-color: #21262d;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      }
+      
+      .section h2 {
+        color: #58a6ff;
+        border-bottom-color: #30363d;
+      }
+      
+      .section h3 {
+        color: #3fb950;
+      }
+      
+      code {
+        background-color: #161b22;
+      }
+      
+      .intro {
+        color: #c9d1d9;
+      }
+      
+      .mermaid {
+        background-color: #0d1117;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      }
+    }
+  </style>
 </head>
 <body>
   <header class="header">
@@ -50,23 +150,23 @@
       </ol>
       <p>The following diagram shows the runtime process of how a GitHub repository URL is processed by the deployed repo.md web app to generate Markdown content:</p>
       <div class="mermaid">
-        flowchart TB
+        flowchart TD
           subgraph "Web App (Runtime)"
             A["User opens repo.md website"] --> B["Enters GitHub URL"]
-            A --> C["Views generated Markdown"]
             B --> D["Website logic (Frontend)"]
             D -- "Sends URL to server for processing" --> E["Server-side code (app.py on Fly.io)"]
             E -- "Server clones repo & creates Markdown" --> F["Markdown content ready"]
             F -- "Sends Markdown back to website" --> D
-            D --> C
+            D --> C["Views generated Markdown"]
+            A --> C
           end
 
-          style A fill:#61dafb20,stroke:#61dafb
-          style B fill:#61dafb20,stroke:#61dafb
-          style C fill:#61dafb20,stroke:#61dafb
-          style D fill:#61dafb20,stroke:#61dafb
-          style E fill:#61dafb20,stroke:#61dafb
-          style F fill:#61dafb20,stroke:#61dafb
+          style A fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style B fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style C fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style D fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style E fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
+          style F fill:#61dafb30,stroke:#61dafb,strokeWidth:2px
       </div>
     </div>
 
@@ -93,17 +193,17 @@
       </ol>
       <p>This GitOps deployment pipeline is visualized below:</p>
       <div class="mermaid">
-        flowchart TB
+        flowchart TD
           subgraph "Web App GitOps Deployment"
             A["Developer pushes code changes to Git"] -->|Triggers| B["GitHub Actions workflow starts (fly-deploy.yml)"];
             B -- "GitHub Actions workflow instructs Fly.io to deploy" --> C["Cloud platform (Fly.io) processes request"]
             C -- "Platform builds app container (Docker image)\n& deploys it to live servers" --> D["Updated website is live (repo-md.com)"]
           end
 
-          style A fill:#0366d620,stroke:#0366d6
-          style B fill:#ff950020,stroke:#ff9500
-          style C fill:#6f42c120,stroke:#6f42c1
-          style D fill:#2ea44f20,stroke:#2ea44f
+          style A fill:#0366d630,stroke:#0366d6,strokeWidth:2px
+          style B fill:#ff950030,stroke:#ff9500,strokeWidth:2px
+          style C fill:#6f42c130,stroke:#6f42c1,strokeWidth:2px
+          style D fill:#2ea44f30,stroke:#2ea44f,strokeWidth:2px
       </div>
     </div>
 
@@ -146,17 +246,17 @@
       </ol>
       <p>This automated iOS build and deployment pipeline is shown below:</p>
       <div class="mermaid">
-        flowchart TB
+        flowchart TD
           subgraph "iOS App GitOps Build & Deployment"
             A["Developer pushes code or starts iOS build manually"] -->|Triggers| B["GitHub Actions workflow for iOS build begins (ios.yml)"];
             B -- "GitHub Actions workflow builds web parts,\nupdates iOS project,\n& runs Fastlane (iOS automation)" --> C["iOS App file created (.ipa)"];
             C -- "Fastlane securely signs & uploads app package" --> D["App available to testers on TestFlight / App Store"];
           end
 
-          style A fill:#0366d620,stroke:#0366d6
-          style B fill:#ff950020,stroke:#ff9500
-          style C fill:#34c75920,stroke:#34c759
-          style D fill:#34c75940,stroke:#34c759
+          style A fill:#0366d630,stroke:#0366d6,strokeWidth:2px
+          style B fill:#ff950030,stroke:#ff9500,strokeWidth:2px
+          style C fill:#34c75930,stroke:#34c759,strokeWidth:2px
+          style D fill:#34c75950,stroke:#34c759,strokeWidth:2px
       </div>
     </div>
 
@@ -164,15 +264,39 @@
   </div>
 
   <footer class="footer">
-    <p>Powered by Python & Flask. Inspired by GitHub.</p>
+    <p>Powered by Go WASM &amp; GitHub API. Inspired by GitHub.</p>
   </footer>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  
+  <!-- Improved mermaid diagram handling -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       mermaid.initialize({
-        startOnLoad: false // We will call run manually
+        startOnLoad: true,
+        theme: window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+        securityLevel: 'loose',
+        flowchart: {
+          curve: 'basis',
+          padding: 15
+        },
+        fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
+        fontSize: 14
       });
-      mermaid.run();
+      
+      // Listen for theme changes
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+          const theme = event.matches ? 'dark' : 'default';
+          // Reinitialize with new theme
+          document.querySelectorAll('.mermaid').forEach((el, i) => {
+            const graphDefinition = el.textContent;
+            el.innerHTML = '';
+            mermaid.render(`mermaid-diagram-${i}`, graphDefinition, (svg) => {
+              el.innerHTML = svg;
+            });
+          });
+        });
+      }
     });
   </script>
 </body>
