@@ -3,9 +3,9 @@
 	"appName": "GoAF App",
 	"webDir": "dist",
 	"server": {
-		"iosScheme": "file",
-		"androidScheme": "file",
-		"hostname": "app",
+		"iosScheme": "capacitor",
+		"androidScheme": "capacitor",
+		"hostname": "localhost",
 		"cleartext": true,
 		"allowNavigation": [
 			"*"
