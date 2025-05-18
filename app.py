@@ -31,7 +31,7 @@ def index():
     # This should serve the HTML page that loads your WASM
     return app.send_static_file('index.html')
 
-@app.route('/proxy_github_api', methods=['GET'])
+@app.route('/api/proxy_github_api', methods=['GET'])
 def proxy_github_api():
     target_url = request.args.get('url')
     if not target_url or not target_url.startswith("https://api.github.com/"):
@@ -97,7 +97,7 @@ def proxy_github_api():
         return jsonify({"error": "An unexpected internal error occurred on the proxy server."}), 500
 
 
-@app.route('/proxy_github_raw_content', methods=['GET'])
+@app.route('/api/proxy_github_raw_content', methods=['GET'])
 def proxy_github_raw_content():
     target_url = request.args.get('url')
     if not target_url or not target_url.startswith("https://raw.githubusercontent.com/"):

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,12 +35,34 @@ type Result struct {
 	Markdown string `json:"markdown"`
 }
 
-// getAppBaseURL dynamically determines the base URL of the backend server.
-// It assumes the Flask app serving the WASM is the intended proxy backend.
+// getAppBaseURL returns the base URL for API requests.
+// It ensures the URL always has a protocol.
 func getAppBaseURL() string {
-    // TODO: Make this configurable or dynamically discovered based on actual deployment.
-    // For local Docker Compose setup where backend is on 8081 and frontend on 3000.
-    return "http://localhost:8081"
+	// Check if we're running in a browser environment
+	window := js.Global().Get("window")
+	if window.IsUndefined() {
+		return "http://localhost:8081" // Fallback for non-browser environments
+	}
+
+	// Get the current location
+	location := window.Get("location")
+	protocol := location.Get("protocol").String()
+	hostname := location.Get("hostname").String()
+	port := location.Get("port").String()
+
+	// Local development - use the backend port (8081 in docker-compose)
+	if hostname == "localhost" || hostname == "127.0.0.1" {
+		if port == "3000" || port == "" {
+			return "http://localhost:8081"
+		}
+		return fmt.Sprintf("%s//%s:8081", protocol, hostname)
+	}
+
+	// Production - use the current protocol and host
+	if port != "" && port != "80" && port != "443" {
+		return fmt.Sprintf("%s//%s:%s", protocol, hostname, port)
+	}
+	return fmt.Sprintf("%s//%s", protocol, hostname)
 }
 
 func main() {
@@ -106,9 +129,47 @@ func generateMarkdown(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
+// makeRequestWithRetries performs an HTTP request with retry logic for rate limiting
+func makeRequestWithRetries(req *http.Request, client *http.Client, maxRetries int) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+
+	for i := 0; i <= maxRetries; i++ {
+		resp, err = client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != 429 {
+			// Success or error other than rate limiting
+			return resp, nil
+		}
+
+		// Handle rate limiting (status 429)
+		if i < maxRetries {
+			// Close the response body to avoid resource leak
+			resp.Body.Close()
+
+			// Wait before retry (exponential backoff)
+			waitTime := time.Duration(math.Pow(2, float64(i))) * time.Second
+			js.Global().Get("console").Call("log", fmt.Sprintf("Rate limited. Retrying in %v seconds...", waitTime.Seconds()))
+			time.Sleep(waitTime)
+
+			// Create a fresh request for retry
+			req, err = http.NewRequest(req.Method, req.URL.String(), nil)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// If we reached here, we've exhausted all retries
+	return resp, nil
+}
+
 func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath string, markdown *strings.Builder, depth int, callback js.Value, maxRecursionDepth int) error {
 	appBaseURL := getAppBaseURL()
-	proxyDirectoryURL := fmt.Sprintf("%s/proxy_github_api?url=%s", appBaseURL, url.QueryEscape(githubDirectoryAPIURL))
+	proxyDirectoryURL := fmt.Sprintf("%s/api/proxy_github_api?url=%s", appBaseURL, url.QueryEscape(githubDirectoryAPIURL))
 
 	displayPath := currentItemPath
 	if displayPath == "" {
@@ -128,7 +189,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 		return fmt.Errorf("http.NewRequest (proxy dir '%s'): %w", displayPath, err)
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := makeRequestWithRetries(req, httpClient, 3) // Retry up to 3 times with exponential backoff
 	if err != nil {
 		errMsg := fmt.Sprintf("\nError fetching proxied directory contents for '%s' (from %s): %v\n", displayPath, proxyDirectoryURL, err)
 		markdown.WriteString(errMsg)
@@ -144,15 +205,14 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 		js.Global().Get("console").Call("error", fmt.Sprintf("Proxy error for directory '%s': Status %d, Body: %s", displayPath, resp.StatusCode, errorPayload))
 
 		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == 429 { // 429 Too Many Requests
-			markdown.WriteString("\n\n## GitHub API Rate Limit Exceeded (via Proxy)\n\n")
-			markdown.WriteString("The GitHub API rate limit has been reached. Your request was proxied through the backend, but GitHub still enforces rate limits.\n")
-			markdown.WriteString("Please try again later. If the backend is configured with a GitHub API token, this should occur less frequently.\n")
-			markdown.WriteString(fmt.Sprintf("Details: Status %d for '%s'. Response from proxy: %s\n\n", resp.StatusCode, displayPath, errorPayload))
-			return fmt.Errorf("proxied GitHub API rate limit: status %d for '%s'. Body: %s", resp.StatusCode, displayPath, errorPayload)
+			marker := fmt.Sprintf("\n⚠️ GitHub API rate limit reached or authentication required. Please try again later or provide a GitHub token.\n\n")
+			markdown.WriteString(marker)
+			return fmt.Errorf("GitHub API rate limit or auth error: %d, %s", resp.StatusCode, errorPayload)
 		}
 
-		markdown.WriteString(fmt.Sprintf("\nError: Proxy returned status %d for directory '%s' (GitHub URL: %s).\nResponse: %s\n", resp.StatusCode, displayPath, githubDirectoryAPIURL, errorPayload))
-		return fmt.Errorf("proxy API status %d for '%s'. Body: %s", resp.StatusCode, displayPath, errorPayload)
+		marker := fmt.Sprintf("Error response from GitHub API for '%s'. Status: %d\n\n", displayPath, resp.StatusCode)
+		markdown.WriteString(marker)
+		return fmt.Errorf("GitHub API error response: %d, %s", resp.StatusCode, errorPayload)
 	}
 
 	var items []GitHubItem
@@ -191,7 +251,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 			}
 
 			githubFileRawURL := *item.DownloadURL
-			proxyFileRawURL := fmt.Sprintf("%s/proxy_github_raw_content?url=%s", appBaseURL, url.QueryEscape(githubFileRawURL))
+			proxyFileRawURL := fmt.Sprintf("%s/api/proxy_github_raw_content?url=%s", appBaseURL, url.QueryEscape(githubFileRawURL))
 
 			js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Proxying raw file request for '%s' to: %s (Original GitHub Raw URL: %s)", depth, item.Path, proxyFileRawURL, githubFileRawURL))
 
@@ -201,11 +261,13 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 				continue
 			}
 
-			fileResp, fileErr := httpClient.Do(fileReq)
+			// Use retry mechanism for raw content requests
+			fileResp, fileErr := makeRequestWithRetries(fileReq, httpClient, 3) // Retry up to 3 times with exponential backoff
 			if fileErr != nil {
-				markdown.WriteString(fmt.Sprintf("Error fetching proxied file '%s' (from %s): %v\n\n", item.Path, proxyFileRawURL, fileErr))
+				markdown.WriteString(fmt.Sprintf("Error downloading proxied file '%s': %v\n\n", item.Path, fileErr))
 				continue
 			}
+			defer fileResp.Body.Close()
 
 			js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Proxy response for raw file '%s'. Status: %d", depth, item.Path, fileResp.StatusCode))
 
