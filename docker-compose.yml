@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8081:5000"
+      - "8081:8080"
     volumes:
       # Mount all source files for development
       - ./app.py:/app/app.py
