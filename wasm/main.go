@@ -36,7 +36,7 @@ type Result struct {
 }
 
 // getAppBaseURL returns the base URL for API requests.
-// It ensures the URL always has a protocol and uses the current domain in production.
+// In development, it returns the full backend URL; in production, it returns an empty string for relative URLs.
 func getAppBaseURL() string {
 	// Check if we're running in a browser environment
 	window := js.Global().Get("window")
@@ -46,23 +46,17 @@ func getAppBaseURL() string {
 	
 	// Get the current location
 	location := window.Get("location")
-	protocol := location.Get("protocol").String()
 	hostname := location.Get("hostname").String()
-	port := location.Get("port").String()
 	
 	// Local development - use the backend port (8081 in docker-compose)
 	if hostname == "localhost" || hostname == "127.0.0.1" {
-		if port == "3000" || port == "" {
-			return "http://localhost:8081"
-		}
-		return fmt.Sprintf("%s//%s:8081", protocol, hostname)
+		return "http://localhost:8081"
 	}
 	
-	// Production - use the current origin (protocol + hostname + port)
+	// Production - use an empty string for relative URLs
 	// This ensures the API requests go to the same server as the frontend
-	origin := location.Get("origin").String()
-	js.Global().Get("console").Call("log", "Using API base URL: " + origin)
-	return origin
+	js.Global().Get("console").Call("log", "Using relative URLs for API requests in production")
+	return ""
 }
 
 func main() {
