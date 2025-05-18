@@ -90,8 +90,12 @@ func generateMarkdown(this js.Value, args []js.Value) interface{} {
 		err := processDirectoryContents(rootAPIURL, &markdownBuilder, 0, callback, maxRecursionDepth)
 		js.Global().Get("console").Call("log", "Finished processDirectoryContents from generateMarkdown for root. Error: ", err)
 		if err != nil {
-			// Append error to markdown, or handle more gracefully
-			markdownBuilder.WriteString(fmt.Sprintf("\n\n--- ERROR DURING PROCESSING ---\n%v\n-----------------------------\n", err))
+			// Append error to markdown in a user-friendly way
+			if strings.Contains(err.Error(), "rate limit exceeded") {
+				// We've already added detailed rate limit info in the markdown within processDirectoryContents
+			} else {
+				markdownBuilder.WriteString(fmt.Sprintf("\n\n--- ERROR DURING PROCESSING ---\n%v\n-----------------------------\n", err))
+			}
 		}
 
 		markdownBuilder.WriteString("\n\n<!-- Generated with repo.md (https://repo-md.com) -->")
@@ -134,6 +138,16 @@ func processDirectoryContents(directoryAPIURL string, markdown *strings.Builder,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Special handling for rate limit errors (common with GitHub API)
+		if resp.StatusCode == http.StatusForbidden {
+			markdown.WriteString("\n\n## GitHub API Rate Limit Exceeded\n\n")
+			markdown.WriteString("The GitHub API rate limit has been reached. Please try again later or use a GitHub token for higher limits.\n\n")
+			markdown.WriteString("* For unauthenticated requests, the rate limit allows for up to 60 requests per hour.\n")
+			markdown.WriteString("* The rate limit resets hourly.\n\n")
+			return fmt.Errorf("GitHub API rate limit exceeded")
+		}
+
+		// General error handling for other status codes
 		markdown.WriteString(fmt.Sprintf("\nError: GitHub API returned status %d for directory %s\n", resp.StatusCode, directoryAPIURL))
 		return fmt.Errorf("GitHub API status %d for %s", resp.StatusCode, directoryAPIURL)
 	}
