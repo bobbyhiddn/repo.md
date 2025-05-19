@@ -21,6 +21,9 @@ var httpClient = &http.Client{
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024 // 1MB
 
+// backendBaseURL will be set by JavaScript
+var backendBaseURL string // This will store the URL passed from JS
+
 type GitHubItem struct {
 	Name        string  `json:"name"`
 	Path        string  `json:"path"` // Full path from repo root
@@ -35,33 +38,32 @@ type Result struct {
 	Markdown string `json:"markdown"`
 }
 
-// getAppBaseURL returns the base URL for API requests.
-// In development, it returns the full backend URL; in production, it returns an empty string for relative URLs.
-func getAppBaseURL() string {
-	// Check if we're running in a browser environment
-	window := js.Global().Get("window")
-	if window.IsUndefined() {
-		return "http://localhost:8081" // Fallback for non-browser environments
+// SetBackendBaseURL allows JavaScript to set the base URL for the backend API.
+func SetBackendBaseURL(this js.Value, args []js.Value) interface{} {
+	if len(args) > 0 && args[0].Type() == js.TypeString {
+		backendBaseURL = args[0].String()
+		js.Global().Get("console").Call("log", "Go WASM: Backend base URL set to:", backendBaseURL)
+	} else {
+		js.Global().Get("console").Call("error", "Go WASM: SetBackendBaseURL called with invalid arguments.")
 	}
-	
-	// Get the current location
-	location := window.Get("location")
-	hostname := location.Get("hostname").String()
-	
-	// Local development - use the backend port (8081 in docker-compose)
-	if hostname == "localhost" || hostname == "127.0.0.1" {
-		return "http://localhost:8081"
+	return nil
+}
+
+// getActualAppBaseURL returns the configured backend base URL.
+// It falls back to relative path if not set, but it's best to ensure it's always set via SetBackendBaseURL.
+func getActualAppBaseURL() string {
+	if backendBaseURL == "" {
+		js.Global().Get("console").Call("warn", "Go WASM: backendBaseURL is not set by JavaScript. Falling back to relative path. This might not work as expected in all environments.")
+		return "" // Fallback to relative path (e.g., for same-origin web deployment)
 	}
-	
-	// Production - use an empty string for relative URLs
-	// This ensures the API requests go to the same server as the frontend
-	js.Global().Get("console").Call("log", "Using relative URLs for API requests in production")
-	return ""
+	js.Global().Get("console").Call("log", "Go WASM: Using backend base URL:", backendBaseURL)
+	return backendBaseURL
 }
 
 func main() {
 	js.Global().Set("generateMarkdown", js.FuncOf(generateMarkdown))
-	<-make(chan bool)
+	js.Global().Set("setBackendBaseURL", js.FuncOf(SetBackendBaseURL)) // Expose the new function
+	<-make(chan bool)                                                  // Keep the WASM module alive
 }
 
 func generateMarkdown(this js.Value, args []js.Value) interface{} {
@@ -93,21 +95,49 @@ func generateMarkdown(this js.Value, args []js.Value) interface{} {
 		}
 		owner := parts[len(parts)-2]
 		repo := parts[len(parts)-1]
-		githubRootAPIURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents", owner, repo)
+		// Construct the root API URL for the repository's contents
+		// Default to the main branch if no specific branch/tag/commit is in the URL
+		// Example: https://github.com/user/repo/tree/branch/path -> /repos/user/repo/contents/path?ref=branch
+		// Example: https://github.com/user/repo -> /repos/user/repo/contents/
+		var apiPath string
+		var ref string
+
+		// Check for /tree/branch or /blob/branch patterns
+		// pathParts are relative to github.com (e.g. owner, repo, tree, branch, path...)
+		urlPathParts := strings.Split(strings.TrimPrefix(originalURL, "https://github.com/"), "/")
+		// urlPathParts[0] is owner, urlPathParts[1] is repo
+		if len(urlPathParts) > 3 && (urlPathParts[2] == "tree" || urlPathParts[2] == "blob") {
+			ref = urlPathParts[3]
+			if len(urlPathParts) > 4 {
+				apiPath = strings.Join(urlPathParts[4:], "/")
+			}
+		} else if len(urlPathParts) > 2 { // Path without explicit tree/blob, assume default branch
+			apiPath = strings.Join(urlPathParts[2:], "/")
+		}
+
+		githubRootAPIURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repo, apiPath)
+		if ref != "" {
+			githubRootAPIURL = fmt.Sprintf("%s?ref=%s", githubRootAPIURL, ref)
+		}
+		// Trim trailing slash if apiPath was empty
+		githubRootAPIURL = strings.TrimSuffix(githubRootAPIURL, "/")
 
 		timestamp := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 		var markdownBuilder strings.Builder
 		markdownBuilder.WriteString(fmt.Sprintf("# Repository: %s\nURL: %s\nTranscription Date: %s\n\n", repo, originalURL, timestamp))
 
 		js.Global().Get("console").Call("log", "Starting processDirectoryContents via proxy for GitHub API URL: ", githubRootAPIURL)
-		const maxRecursionDepth = 50
-		// Initial call for root directory, currentPath is empty string for root
+
+		maxRecursionDepth := -1                               // Default to no limit, can be overridden by JS if needed
+		if len(args) > 2 && args[2].Type() == js.TypeNumber { // Check if maxDepth is passed from JS
+			maxRecursionDepth = int(args[2].Float())
+			js.Global().Get("console").Call("log", "Go WASM: Max recursion depth set to:", maxRecursionDepth)
+		}
+
 		err := processDirectoryContents(githubRootAPIURL, "", &markdownBuilder, 0, callback, maxRecursionDepth)
 
 		if err != nil {
 			js.Global().Get("console").Call("error", "Error from processDirectoryContents: ", err.Error())
-			// Error messages (e.g. rate limit) are typically added to markdownBuilder within processDirectoryContents or its callees.
-			// If not already specific, a general message could be added, but prefer specific ones.
 			if !strings.Contains(markdownBuilder.String(), "Rate Limit Exceeded") && !strings.Contains(markdownBuilder.String(), "Error: Proxy returned status") {
 				markdownBuilder.WriteString(fmt.Sprintf("\n\n--- ERROR DURING PROCESSING ---\n%v\n-----------------------------\n", err))
 			}
@@ -131,38 +161,74 @@ func makeRequestWithRetries(req *http.Request, client *http.Client, maxRetries i
 	for i := 0; i <= maxRetries; i++ {
 		resp, err = client.Do(req)
 		if err != nil {
+			// If context is done (e.g. browser tab closed), this might be the error.
+			// js.Global().Get("console").Call("error", "Go WASM: client.Do error:", err.Error())
 			return nil, err
 		}
 
-		if resp.StatusCode != 429 {
-			// Success or error other than rate limiting
+		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode != http.StatusForbidden { // 429 or 403 (often rate limit)
 			return resp, nil
 		}
 
-		// Handle rate limiting (status 429)
-		if i < maxRetries {
-			// Close the response body to avoid resource leak
-			resp.Body.Close()
-
-			// Wait before retry (exponential backoff)
-			waitTime := time.Duration(math.Pow(2, float64(i))) * time.Second
-			js.Global().Get("console").Call("log", fmt.Sprintf("Rate limited. Retrying in %v seconds...", waitTime.Seconds()))
-			time.Sleep(waitTime)
-
-			// Create a fresh request for retry
-			req, err = http.NewRequest(req.Method, req.URL.String(), nil)
-			if err != nil {
-				return nil, err
+		// Handle rate limiting (status 429 or 403 if X-RateLimit-Remaining is 0)
+		isRateLimit := resp.StatusCode == http.StatusTooManyRequests
+		if resp.StatusCode == http.StatusForbidden {
+			if remaining := resp.Header.Get("X-RateLimit-Remaining"); remaining == "0" {
+				isRateLimit = true
 			}
 		}
-	}
 
-	// If we reached here, we've exhausted all retries
-	return resp, nil
+		if isRateLimit && i < maxRetries {
+			resp.Body.Close()
+			retryAfterHeader := resp.Header.Get("Retry-After")
+			waitTimeSeconds := 60 // Default wait time
+			if retryAfterHeader != "" {
+				if s, errParse := time.ParseDuration(retryAfterHeader + "s"); errParse == nil {
+					waitTimeSeconds = int(s.Seconds())
+				}
+			}
+			// Apply exponential backoff with jitter
+			backoff := math.Pow(2, float64(i))
+			waitTime := time.Duration(int(backoff)*waitTimeSeconds) * time.Second / 2 // Add some jitter
+			if waitTime < 1*time.Second {
+				waitTime = 1 * time.Second
+			} // Minimum 1s
+			if waitTime > 300*time.Second {
+				waitTime = 300 * time.Second
+			} // Max 5 mins
+
+			js.Global().Get("console").Call("log", fmt.Sprintf("Go WASM: Rate limited. Retrying in %v seconds...", waitTime.Seconds()))
+			time.Sleep(waitTime)
+
+			// Create a fresh request for retry as the body of the previous one might have been consumed or closed
+			// For GET requests, the body is nil, so this is simpler.
+			// If it were POST, we'd need to re-create the body.
+			newReq, errClone := http.NewRequest(req.Method, req.URL.String(), nil)
+			if errClone != nil {
+				return nil, fmt.Errorf("failed to clone request for retry: %w", errClone)
+			}
+			// Copy headers
+			for key, values := range req.Header {
+				for _, value := range values {
+					newReq.Header.Add(key, value)
+				}
+			}
+			req = newReq // Use the new request for the next iteration
+			continue
+		} else if !isRateLimit { // Not a rate limit error, but not OK either, return immediately
+			return resp, nil
+		}
+		// If it is a rate limit error but we've exhausted retries
+		if isRateLimit && i >= maxRetries {
+			js.Global().Get("console").Call("warn", "Go WASM: Rate limit retries exhausted.")
+			return resp, nil // Return the last rate-limited response
+		}
+	}
+	return resp, nil // Should be unreachable if loop logic is correct
 }
 
 func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath string, markdown *strings.Builder, depth int, callback js.Value, maxRecursionDepth int) error {
-	appBaseURL := getAppBaseURL()
+	appBaseURL := getActualAppBaseURL() // Use the new getter
 	proxyDirectoryURL := fmt.Sprintf("%s/api/proxy_github_api?url=%s", appBaseURL, url.QueryEscape(githubDirectoryAPIURL))
 
 	displayPath := currentItemPath
@@ -171,7 +237,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 	}
 	js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Proxying dir request for '%s' to: %s (Original GitHub API URL: %s)", depth, displayPath, proxyDirectoryURL, githubDirectoryAPIURL))
 
-	if depth > maxRecursionDepth {
+	if maxRecursionDepth >= 0 && depth > maxRecursionDepth { // Check if maxRecursionDepth is set (>=0)
 		markdown.WriteString(fmt.Sprintf("\n*Skipping directory '%s' due to max recursion depth (%d).*\n", displayPath, maxRecursionDepth))
 		return fmt.Errorf("max recursion depth %d reached for %s", maxRecursionDepth, displayPath)
 	}
@@ -183,7 +249,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 		return fmt.Errorf("http.NewRequest (proxy dir '%s'): %w", displayPath, err)
 	}
 
-	resp, err := makeRequestWithRetries(req, httpClient, 3) // Retry up to 3 times with exponential backoff
+	resp, err := makeRequestWithRetries(req, httpClient, 3)
 	if err != nil {
 		errMsg := fmt.Sprintf("\nError fetching proxied directory contents for '%s' (from %s): %v\n", displayPath, proxyDirectoryURL, err)
 		markdown.WriteString(errMsg)
@@ -198,15 +264,15 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 		errorPayload := string(bodyBytes)
 		js.Global().Get("console").Call("error", fmt.Sprintf("Proxy error for directory '%s': Status %d, Body: %s", displayPath, resp.StatusCode, errorPayload))
 
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == 429 { // 429 Too Many Requests
-			marker := fmt.Sprintf("\n⚠️ GitHub API rate limit reached or authentication required. Please try again later or provide a GitHub token.\n\n")
+		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+			marker := fmt.Sprintf("\n⚠️ GitHub API rate limit reached or authentication required for '%s'. Please try again later or provide a GitHub token.\nDetails: %s\n\n", displayPath, errorPayload)
 			markdown.WriteString(marker)
-			return fmt.Errorf("GitHub API rate limit or auth error: %d, %s", resp.StatusCode, errorPayload)
+			return fmt.Errorf("GitHub API rate limit or auth error for '%s': %d, %s", displayPath, resp.StatusCode, errorPayload)
 		}
 
-		marker := fmt.Sprintf("Error response from GitHub API for '%s'. Status: %d\n\n", displayPath, resp.StatusCode)
+		marker := fmt.Sprintf("Error response from GitHub API for '%s'. Status: %d\nDetails: %s\n\n", displayPath, resp.StatusCode, errorPayload)
 		markdown.WriteString(marker)
-		return fmt.Errorf("GitHub API error response: %d, %s", resp.StatusCode, errorPayload)
+		return fmt.Errorf("GitHub API error response for '%s': %d, %s", displayPath, resp.StatusCode, errorPayload)
 	}
 
 	var items []GitHubItem
@@ -217,7 +283,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 	}
 
 	if len(items) == 0 {
-		if currentItemPath == "" { // Root directory
+		if currentItemPath == "" {
 			markdown.WriteString(fmt.Sprintf("\n*Repository '%s' appears to be empty or contains no processable items via proxy.*\n", displayPath))
 		} else {
 			markdown.WriteString(fmt.Sprintf("\n*Directory `%s` is empty or contains no processable items via proxy.*\n", currentItemPath))
@@ -225,7 +291,6 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 	}
 
 	for _, item := range items {
-		// item.Path from GitHub API is the full path from the repo root.
 		js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Processing item: '%s' (Type: %s, GitHub API URL: %s, GitHub DownloadURL: %v)", depth, item.Path, item.Type, item.APIURL, item.DownloadURL))
 
 		if item.Type == "file" {
@@ -255,8 +320,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 				continue
 			}
 
-			// Use retry mechanism for raw content requests
-			fileResp, fileErr := makeRequestWithRetries(fileReq, httpClient, 3) // Retry up to 3 times with exponential backoff
+			fileResp, fileErr := makeRequestWithRetries(fileReq, httpClient, 3)
 			if fileErr != nil {
 				markdown.WriteString(fmt.Sprintf("Error downloading proxied file '%s': %v\n\n", item.Path, fileErr))
 				continue
@@ -267,7 +331,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 
 			if fileResp.StatusCode != http.StatusOK {
 				fileBodyBytes, _ := io.ReadAll(fileResp.Body)
-				fileResp.Body.Close()
+				// fileResp.Body.Close() // Already deferred
 				errorPayload := string(fileBodyBytes)
 				js.Global().Get("console").Call("error", fmt.Sprintf("Proxy error for raw file '%s': Status %d, Body: %s", item.Path, fileResp.StatusCode, errorPayload))
 				markdown.WriteString(fmt.Sprintf("Error: Proxy returned status %d for file '%s' (GitHub Raw URL: %s).\nResponse: %s\n\n", fileResp.StatusCode, item.Path, githubFileRawURL, errorPayload))
@@ -275,7 +339,7 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 			}
 
 			bodyBytes, readErr := io.ReadAll(fileResp.Body)
-			fileResp.Body.Close()
+			// fileResp.Body.Close() // Already deferred
 			if readErr != nil {
 				markdown.WriteString(fmt.Sprintf("Error reading proxied file content for '%s': %v\n\n", item.Path, readErr))
 				continue
@@ -284,16 +348,14 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 			markdown.WriteString(fmt.Sprintf("```%s\n%s\n```\n\n", getFileExtension(item.Path), string(bodyBytes)))
 
 		} else if item.Type == "dir" {
-			// item.APIURL is the GitHub API URL for the directory's contents.
-			// item.Path is the full path of the directory from the repo root.
 			err := processDirectoryContents(item.APIURL, item.Path, markdown, depth+1, callback, maxRecursionDepth)
 			if err != nil {
 				js.Global().Get("console").Call("error", fmt.Sprintf("Error processing subdirectory '%s' (GitHub API URL: %s): %v", item.Path, item.APIURL, err))
-				if strings.Contains(err.Error(), "rate limit") {
-					return err // Propagate rate limit error up.
+				if strings.Contains(err.Error(), "rate limit") || strings.Contains(err.Error(), "auth error") {
+					return err // Propagate critical errors up.
 				}
 			}
-		} else if item.Type == "submodule" { // Handle submodule type
+		} else if item.Type == "submodule" {
 			js.Global().Get("console").Call("log", fmt.Sprintf("Depth %d: Encountered submodule: %s", depth, item.Path))
 			markdown.WriteString(fmt.Sprintf("### [SUBMODULE] %s\n(Content of submodule not transcribed)\n\n", item.Path))
 		} else {
@@ -307,51 +369,68 @@ func processDirectoryContents(githubDirectoryAPIURL string, currentItemPath stri
 func getFileExtension(filePath string) string {
 	lastDot := strings.LastIndex(filePath, ".")
 	if lastDot > -1 && lastDot < len(filePath)-1 {
-		return strings.ToLower(filePath[lastDot+1:])
-	}
-	return ""
-}
-
-func isImageExtension(ext string) bool {
-	imageExtensions := map[string]bool{"png": true, "jpg": true, "jpeg": true, "gif": true, "svg": true, "ico": true, "webp": true, "bmp": true}
-	return imageExtensions[ext]
-}
-
-// isPotentiallyBinary checks for a high proportion of non-printable ASCII or null bytes.
-// This is a simple heuristic.
-func isPotentiallyBinary(data []byte) bool {
-	if len(data) == 0 {
-		return false
-	}
-	nonPrintable := 0
-	limit := len(data)
-	if limit > 512 { // Check only first 512 bytes for performance
-		limit = 512
-	}
-	for i := 0; i < limit; i++ {
-		b := data[i]
-		if b == 0x00 { // Null byte is a strong indicator
-			nonPrintable++
-		} else if (b < 32 || b > 126) && b != '\n' && b != '\r' && b != '\t' {
-			nonPrintable++
+		ext := strings.ToLower(filePath[lastDot+1:])
+		// Provide common language mappings for syntax highlighting
+		switch ext {
+		case "js":
+			return "javascript"
+		case "py":
+			return "python"
+		case "go":
+			return "go"
+		case "java":
+			return "java"
+		case "c", "h":
+			return "c"
+		case "cpp", "hpp", "cxx":
+			return "cpp"
+		case "cs":
+			return "csharp"
+		case "rb":
+			return "ruby"
+		case "php":
+			return "php"
+		case "swift":
+			return "swift"
+		case "kt", "kts":
+			return "kotlin"
+		case "rs":
+			return "rust"
+		case "ts":
+			return "typescript"
+		case "html", "htm":
+			return "html"
+		case "css":
+			return "css"
+		case "json":
+			return "json"
+		case "xml":
+			return "xml"
+		case "md":
+			return "markdown"
+		case "sh":
+			return "shell"
+		case "yaml", "yml":
+			return "yaml"
+		case "toml":
+			return "toml"
+		case "dockerfile", "Dockerfile":
+			return "dockerfile"
+		default:
+			return ext
 		}
 	}
-	// If more than 20% of checked bytes are non-printable/null, assume binary
-	return float64(nonPrintable)/float64(limit) > 0.20
+	return "" // No extension or unknown
 }
 
-func isCommonTextFormat(ext string) bool {
-	// Add extensions that are text-based but might trigger the binary heuristic
-	// (e.g. minified JS, some data files)
-	commonTextExts := map[string]bool{"json": true, "xml": true, "csv": true, "tsv": true, "md": true, "txt": true, "html": true, "css": true, "js": true, "ts": true, "py": true, "go": true, "java": true, "c": true, "cpp": true, "h": true, "hpp": true, "sh": true, "rb": true, "php": true, "yml": true, "yaml": true, "toml": true, "ini": true, "lock": true}
-	return commonTextExts[ext]
-}
+// isImageExtension, isPotentiallyBinary, isCommonTextFormat are not used in this version
+// as content is proxied and assumed to be text unless GitHub API indicates otherwise
+// or if specific handling for binary types were to be re-added.
 
 func sendResult(callback js.Value, result Result) {
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		js.Global().Get("console").Call("error", "Failed to marshal result for callback:", err.Error())
-		// Send a fallback error to JS if marshaling fails
 		errorResult := `{"repo_name": "` + result.RepoName + `", "markdown": "Error: Could not serialize response from WASM."}`
 		callback.Invoke(errorResult)
 		return

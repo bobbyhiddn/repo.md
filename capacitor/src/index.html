@@ -147,56 +147,37 @@ Paste a GitHub repository URL above to get started!</code></pre>
   </div>
 
   <footer class="footer">
-    <p>Powered by Go WASM &amp; GitHub API. Inspired by GitHub.</p>
+    <p>Powered by Go WASM & GitHub API. Inspired by GitHub.</p>
   </footer>
 <!-- All script logic related to WASM will be here -->
 <script>
-    const worker = new Worker('wasm-worker.js'); // Path relative to index.html in dist/
+    // After Vite build, wasm-worker.js will be at the root of dist/ (copied from public/)
+    const worker = new Worker('./wasm-worker.js'); 
     
-    // Initialize WASM as soon as the worker is created
-    console.log('Sending initWasm message to worker');
+    console.log('Main Thread: Sending initWasm message to worker.');
     worker.postMessage({ type: 'initWasm' });
 
-    // Fun loading messages with tech jargon
     const loadingMessages = [
-      'Initializing quantum repository scanner...',
-      'Calibrating neural networks...',
-      'Brewing coffee for the dev team...',
-      'Herding code cats...',
-      'Compiling markdown particles...',
-      'Initializing the flux capacitor...',
-      'Warming up the GPUs...',
-      'Polishing the bits...',
-      'Downloading more RAM...',
-      'Training the AI hamsters...',
-      'Defragging the database...',
-      'Aligning the code prisms...',
-      'Booting up the mainframe...',
-      'Initializing hyperdrive...',
-      'Charging the laser beams...',
-      'Consulting the documentation...',
-      'Reticulating splines...',
-      'Politely asking the server...',
-      'Reversing the polarity...',
-      'Engaging warp drive...',
-      'Initializing the hyperdrive...',
-      'Bending the space-time continuum...',
-      'Asking ChatGPT for help...',
-      'Counting to infinity...',
-      'Dividing by zero...'
+      'Initializing quantum repository scanner...', 'Calibrating neural networks...', 'Brewing coffee for the dev team...',
+      'Herding code cats...', 'Compiling markdown particles...', 'Initializing the flux capacitor...',
+      'Warming up the GPUs...', 'Polishing the bits...', 'Downloading more RAM...',
+      'Training the AI hamsters...', 'Defragging the database...', 'Aligning the code prisms...',
+      'Booting up the mainframe...', 'Initializing hyperdrive...', 'Charging the laser beams...',
+      'Consulting the documentation...', 'Reticulating splines...', 'Politely asking the server...',
+      'Reversing the polarity...', 'Engaging warp drive...', 'Bending the space-time continuum...',
+      'Asking ChatGPT for help...', 'Counting to infinity...', 'Dividing by zero...'
     ];
     
     let currentMessageIndex = 0;
     let messageInterval;
-    let progressInterval; // Keep this accessible
+    let progressInterval;
 
-      // Update loading state UI
     function updateLoadingState(stage, progress) {
       const loadingText = document.querySelector('.loading-text');
       const progressBar = document.querySelector('.progress-bar');
       const statusMessage = document.querySelector('.status-message');
       
-      if (loadingText && loadingMessages.length > 0) { // Check length to prevent error if array is empty
+      if (loadingText && loadingMessages.length > 0) {
         loadingText.textContent = loadingMessages[currentMessageIndex];
         currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
       }
@@ -225,136 +206,146 @@ Paste a GitHub repository URL above to get started!</code></pre>
         document.getElementById('result').style.display = 'none';
         document.getElementById('error').style.display = 'none';
         document.querySelector('.result-actions').style.display = 'none';
-        document.getElementById('markdown').textContent = ''; // Clear previous results
+        document.getElementById('markdown').textContent = '';
     }
 
-    function enableSubmitButton() {
-        console.log('enableSubmitButton called');
+    function enableSubmitButton(isReady = true) {
         const submitButton = document.getElementById('submitBtn');
         if (submitButton) {
-            console.log('Found submitBtn, current disabled state:', submitButton.disabled);
-            submitButton.disabled = false;
-            submitButton.innerHTML = 'Generate';
-            console.log('Button enabled, new state:', submitButton.disabled);
-            
-            // Force a redraw of the button
-            submitButton.style.opacity = '0.99';
-            setTimeout(() => {
-                submitButton.style.opacity = '1';
-                console.log('Button opacity reset, final disabled state:', submitButton.disabled);
-            }, 10);
-        } else {
-            console.error('Submit button not found in DOM!');
+            submitButton.disabled = !isReady;
+            submitButton.innerHTML = isReady ? 'Generate' : 'Initializing...';
         }
     }
     
-    function handleWorkerError(errorMessage, details = '') {
-        console.error('Worker Error:', errorMessage, details);
+    function handleWorkerError(errorMessageText, details = '') {
+        console.error('Main Thread: Worker Error -', errorMessageText, details);
         clearInterval(progressInterval);
         clearInterval(messageInterval);
         document.getElementById('loading').style.display = 'none';
-        enableSubmitButton();
-        document.getElementById('welcome').style.display = 'none'; // Hide welcome
-        showUIMessage('error', `<strong>Error:</strong> ${errorMessage}<br><small>${details}</small>`, true);
+        enableSubmitButton(true); // Re-enable button on error
+        document.getElementById('welcome').style.display = 'none';
+        showUIMessage('error', `<strong>Error:</strong> ${errorMessageText}<br><small>${details}</small>`, true);
+    }
+
+    function getProductionBackendUrl() {
+        return 'https://repo-md.com'; // Your actual production backend
+    }
+
+    function getDevelopmentBackendUrl() {
+        return 'http://localhost:8081'; // Your local Flask/Gunicorn backend
     }
 
     worker.onmessage = (event) => {
         const { type, result, error, message } = event.data;
+        console.log("Main Thread: Message from worker:", event.data);
 
         if (type === 'wasmReady') {
-            console.log("WASM is ready in worker.");
-            // Just enable the button, don't show loading yet
-            enableSubmitButton(); // Enable button once WASM is ready
+            console.log("Main Thread: WASM is ready in worker.");
+            
+            let appBackendURL;
+            const isCapacitorNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+
+            if (isCapacitorNative) {
+                appBackendURL = getProductionBackendUrl();
+                console.log(`Main Thread: Capacitor native platform. Setting backend URL for WASM to: ${appBackendURL}`);
+            } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                appBackendURL = getDevelopmentBackendUrl();
+                console.log(`Main Thread: Local web development. Setting backend URL for WASM to: ${appBackendURL}`);
+            } else {
+                appBackendURL = getProductionBackendUrl();
+                console.log(`Main Thread: Deployed web (hostname: ${window.location.hostname}). Setting backend URL for WASM to: ${appBackendURL}`);
+            }
+            
+            worker.postMessage({ type: 'setWasmBackendURL', url: appBackendURL });
+            enableSubmitButton(true); // Enable submit button now that WASM is ready and configured
+            
+            // Optionally, update a status message or hide initial loading indicator
+            const loadingDiv = document.getElementById('loading');
+            if (loadingDiv.style.display !== 'none' && loadingDiv.querySelector('.loading-text').textContent.includes("Initializing")) {
+                 // If we were showing "Initializing", hide it or change message
+                 // For now, just ensure button is enabled. User action will trigger next loading.
+            }
+
         } else if (type === 'wasmError') {
-            handleWorkerError('WASM Initialization Failed.', error);
+            handleWorkerError('WASM Initialization Failed.', error ? (error.message || error) : 'Unknown WASM error');
         } else if (type === 'markdownResult') {
             clearInterval(progressInterval);
             clearInterval(messageInterval);
             try {
-                const data = JSON.parse(result); // Result from Go WASM callback
-                if (data.markdown.startsWith("Error:")) { // Check if Go itself sent an error string
-                    handleWorkerError(data.markdown, `Repo: ${data.repo_name}`);
+                const data = JSON.parse(result); 
+                if (data.markdown && data.markdown.toLowerCase().startsWith("error:")) {
+                    handleWorkerError(data.markdown, `Repo: ${data.repo_name || 'N/A'}`);
                     return;
                 }
-
-                updateLoadingState(null, 100);
+                updateLoadingState(null, 100); // Final progress
                 
-                setTimeout(() => {
+                setTimeout(() => { // Short delay for UI transition
                     document.getElementById('markdown').textContent = data.markdown;
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('welcome').style.display = 'none';
                     document.getElementById('result').style.display = 'block';
-                    document.querySelector('.result-actions').style.display = 'flex'; // Use flex for display
-                    enableSubmitButton();
+                    document.querySelector('.result-actions').style.display = 'flex';
+                    enableSubmitButton(true);
                     document.getElementById('resultContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 300);
                 
             } catch (parseError) {
-                handleWorkerError('Failed to parse result from WASM.', `Details: ${parseError.message}. Raw: ${result}`);
+                handleWorkerError('Failed to parse result from WASM.', `Details: ${parseError.message}. Raw: ${String(result).substring(0, 500)}...`);
             }
-        } else if (type === 'error') { // General error from worker logic
-             handleWorkerError(message || 'An unexpected error occurred in the worker.', error);
+        } else if (type === 'error') { 
+             handleWorkerError(message || 'An unexpected error occurred in the worker.', error ? (error.message || error) : '');
         }
     };
     
-    // Hide loading initially - only show when user clicks Generate
     document.getElementById('loading').style.display = 'none';
-    const initialSubmitButton = document.getElementById('submitBtn');
-    if (initialSubmitButton) initialSubmitButton.disabled = true; // Disable until WASM ready
-
+    enableSubmitButton(false); // Disable button initially, enable on wasmReady
 
     document.getElementById('submitBtn').addEventListener('click', function(e) {
         e.preventDefault();
-        e.stopPropagation();
-        
-        const form = document.getElementById('repoForm');
-        const submitButton = this; // `this` is the button
         const urlInput = document.getElementById('github_url');
-        const url = urlInput.value;
+        const url = urlInput.value.trim();
         
-        if (!form.checkValidity() || !url) {
-          urlInput.reportValidity(); // Show validation message on input
+        if (!urlInput.checkValidity() || !url) {
+          urlInput.reportValidity();
           return;
         }
         
-        submitButton.disabled = true;
-        submitButton.innerHTML = 'Working...';
+        this.disabled = true;
+        this.innerHTML = 'Working...';
         
         resetUIForNewRequest();
-        updateLoadingState('init', 5); // Initial visual progress
+        updateLoadingState('init', 5); 
         
-        // Start loading messages cycle
-        currentMessageIndex = 0; // Reset message index
+        currentMessageIndex = 0; 
         messageInterval = setInterval(() => {
-          updateLoadingState(); // Will cycle through messages
+          updateLoadingState(); 
         }, 2000);
         
-        // Simulate progress updates
         progressInterval = setInterval(() => {
           const progressBar = document.querySelector('.progress-bar');
           if (progressBar) {
             const currentWidth = parseFloat(progressBar.style.width || '0');
             if (currentWidth < 90) {
-              const increment = Math.random() * 5 + 2; // Slightly faster perceived progress
+              const increment = Math.random() * 5 + 2; 
               updateLoadingState(null, Math.min(currentWidth + increment, 90));
             }
           }
-        }, 500); // Update progress faster
+        }, 500);
 
+        // Pass maxDepth if you add an input for it, e.g., { type: 'generateMarkdown', url: url, data: { maxDepth: parseInt(maxDepthInput.value) || -1 } }
         worker.postMessage({ type: 'generateMarkdown', url: url });
     });
 
-    // Failsafe for form submission if button type is "submit" (it's "button" now)
     document.getElementById('repoForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        // Trigger click on the actual button to ensure consistent logic
         document.getElementById('submitBtn').click();
     });
-    // Copy and Download button listeners
+
     document.getElementById('copyBtn').addEventListener('click', function() {
       const markdownText = document.getElementById('markdown').textContent;
       navigator.clipboard.writeText(markdownText).then(() => {
-        alert('Copied to clipboard!');
+        this.textContent = 'Copied!';
+        setTimeout(() => { this.textContent = 'Copy to Clipboard'; }, 2000);
       }, (err) => {
         console.error('Could not copy text: ', err);
         alert('Failed to copy. Please try manually.');
@@ -363,27 +354,18 @@ Paste a GitHub repository URL above to get started!</code></pre>
 
     document.getElementById('downloadBtn').addEventListener('click', function() {
       const markdownText = document.getElementById('markdown').textContent;
-      const repoName = document.getElementById('github_url').value.split('/').pop() || 'repository';
+      const repoNameInput = document.getElementById('github_url').value;
+      const repoName = repoNameInput ? repoNameInput.split('/').pop() : 'repository';
       const blob = new Blob([markdownText], { type: 'text/markdown;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
+      const dl_url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = dl_url;
       a.download = `${repoName}.md`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(dl_url);
     });
-    
-    // Direct fix to ensure button becomes enabled
-    setTimeout(() => {
-      console.log('Force-enabling submit button');
-      const submitBtn = document.getElementById('submitBtn');
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        console.log('Button force-enabled');
-      }
-    }, 1000);
   </script>
 </body>
 </html>
